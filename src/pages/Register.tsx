@@ -1,19 +1,44 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button } from "../components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card"
 import { Input } from "../components/ui/input"
 import { Label } from "../components/ui/label"
+import { supabase } from '../lib/supabase'
 
 export default function Register() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
+    const [error, setError] = useState('')
+    const [loading, setLoading] = useState(false)
+    const navigate = useNavigate()
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        // TODO: Implement registration logic
-        console.log('Register attempt:', { email, password, confirmPassword })
+        setError('')
+
+        if (password !== confirmPassword) {
+            setError('Passwords do not match')
+            return
+        }
+
+        try {
+            setLoading(true)
+            const { error } = await supabase.auth.signUp({
+                email,
+                password,
+            })
+
+            if (error) throw error
+
+            // Registration successful
+            navigate('/login')
+        } catch (error) {
+            setError(error instanceof Error ? error.message : 'An error occurred during registration')
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (
@@ -30,6 +55,11 @@ export default function Register() {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        {error && (
+                            <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+                                {error}
+                            </div>
+                        )}
                         <div className="space-y-2">
                             <Label htmlFor="email" className="text-gray-900">Email address</Label>
                             <Input
@@ -40,6 +70,7 @@ export default function Register() {
                                 required
                                 placeholder="Enter your email"
                                 className="text-gray-900"
+                                disabled={loading}
                             />
                         </div>
                         <div className="space-y-2">
@@ -52,6 +83,7 @@ export default function Register() {
                                 required
                                 placeholder="Create a password"
                                 className="text-gray-900"
+                                disabled={loading}
                             />
                         </div>
                         <div className="space-y-2">
@@ -64,10 +96,11 @@ export default function Register() {
                                 required
                                 placeholder="Confirm your password"
                                 className="text-gray-900"
+                                disabled={loading}
                             />
                         </div>
-                        <Button type="submit" className="w-full">
-                            Create account
+                        <Button type="submit" className="w-full" disabled={loading}>
+                            {loading ? 'Creating account...' : 'Create account'}
                         </Button>
                     </form>
                 </CardContent>
