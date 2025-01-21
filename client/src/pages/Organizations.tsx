@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { trpc } from '../lib/trpc'
 import { CreateOrganizationDialog } from '../components/CreateOrganizationDialog'
 import { z } from 'zod'
+import { Link } from 'react-router-dom'
 
 type Organization = Database['public']['Tables']['organizations']['Row']
 
@@ -125,6 +126,9 @@ export default function Organizations() {
                                 <p className="text-sm text-gray-500">
                                     Created {new Date(org.created_at || '').toLocaleDateString()}
                                 </p>
+                                <Button variant="link" className="mt-2 p-0" asChild>
+                                    <Link to={`/${org.id}/tickets`}>View Tickets</Link>
+                                </Button>
                             </CardContent>
                         </Card>
                     ))}

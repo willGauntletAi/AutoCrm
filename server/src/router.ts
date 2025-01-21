@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { router, procedure } from './trpc';
 import { createOrganization, getOrganizations } from './handlers/organization';
+import { createTicket, getTickets } from './handlers/ticket';
 import { authedProcedure } from './middleware/auth';
 
 export const appRouter = router({
@@ -26,6 +27,30 @@ export const appRouter = router({
     getOrganizations: authedProcedure
         .query(({ ctx }) => {
             return getOrganizations({
+                userId: ctx.user.id
+            });
+        }),
+
+    createTicket: authedProcedure
+        .input(z.object({
+            title: z.string().min(1).max(255),
+            description: z.string().optional(),
+            organization_id: z.string().uuid()
+        }))
+        .mutation(({ input, ctx }) => {
+            return createTicket({
+                ...input,
+                userId: ctx.user.id
+            });
+        }),
+
+    getTickets: authedProcedure
+        .input(z.object({
+            organization_id: z.string().uuid()
+        }))
+        .query(({ input, ctx }) => {
+            return getTickets({
+                organization_id: input.organization_id,
                 userId: ctx.user.id
             });
         }),

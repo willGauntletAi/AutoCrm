@@ -7,6 +7,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Profile from './pages/Profile'
 import Organizations from './pages/Organizations'
+import Tickets from './pages/Tickets'
 import ProtectedRoute from './components/ProtectedRoute'
 import { supabase } from './lib/supabase'
 
@@ -50,6 +51,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/:organization_id/tickets"
+              element={
+                <ProtectedRoute>
+                  <Tickets />
                 </ProtectedRoute>
               }
             />
