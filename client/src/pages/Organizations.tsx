@@ -1,18 +1,40 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Database } from '../types/database.types'
+import { supabase } from '../lib/supabase'
 import { trpc } from '../lib/trpc'
 import { CreateOrganizationDialog } from '../components/CreateOrganizationDialog'
+import { z } from 'zod'
 
 type Organization = Database['public']['Tables']['organizations']['Row']
 
+const organizationSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    created_at: z.string().nullable()
+})
+
 export default function Organizations() {
     const [error, setError] = useState<string | null>(null)
+    const [organizations, setOrganizations] = useState<Organization[]>([])
 
-    const { data: organizations, isLoading } = trpc.getOrganizations.useQuery<Organization[]>(undefined, {
+    const { isLoading } = trpc.getOrganizations.useQuery(undefined, {
         onError: (err) => {
             setError(err.message)
+        },
+        onSuccess: (data) => {
+            // Validate and set the initial data
+            const orgs = data.map(org => {
+                const parseResult = organizationSchema.safeParse(org)
+                if (!parseResult.success) {
+                    console.error('Invalid organization data:', parseResult.error)
+                    return null
+                }
+                return parseResult.data
+            }).filter((org): org is Organization => org !== null)
+
+            setOrganizations(orgs)
         }
     })
 
@@ -21,6 +43,47 @@ export default function Organizations() {
             setError(err.message)
         }
     })
+
+    useEffect(() => {
+        // Set up real-time subscription
+        const subscription = supabase
+            .channel('organizations')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'organizations'
+                },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        const parseResult = organizationSchema.safeParse(payload.new)
+                        if (parseResult.success) {
+                            setOrganizations(prev => [...prev, parseResult.data])
+                        } else {
+                            console.error('Invalid organization data:', parseResult.error)
+                        }
+                    } else if (payload.eventType === 'DELETE') {
+                        setOrganizations(prev => prev.filter(org => org.id !== payload.old.id))
+                    } else if (payload.eventType === 'UPDATE') {
+                        const parseResult = organizationSchema.safeParse(payload.new)
+                        if (parseResult.success) {
+                            setOrganizations(prev => prev.map(org =>
+                                org.id === parseResult.data.id ? parseResult.data : org
+                            ))
+                        } else {
+                            console.error('Invalid organization data:', parseResult.error)
+                        }
+                    }
+                }
+            )
+            .subscribe()
+
+        // Cleanup subscription
+        return () => {
+            subscription.unsubscribe()
+        }
+    }, [])
 
     const handleCreateOrganization = (name: string) => {
         createOrganization.mutate({ name })
@@ -53,7 +116,7 @@ export default function Organizations() {
                 )}
 
                 <div className="grid gap-4">
-                    {organizations?.map((org) => (
+                    {organizations.map((org) => (
                         <Card key={org.id}>
                             <CardHeader>
                                 <CardTitle>{org.name}</CardTitle>
@@ -66,7 +129,7 @@ export default function Organizations() {
                         </Card>
                     ))}
 
-                    {organizations?.length === 0 && (
+                    {organizations.length === 0 && (
                         <div className="text-center p-8 bg-gray-50 rounded-lg">
                             <p className="text-gray-600">You don't have any organizations yet.</p>
                             <CreateOrganizationDialog

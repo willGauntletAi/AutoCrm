@@ -8,6 +8,8 @@
   "scripts": {
     "type-gen": "npm run type-gen -w client && npm run type-gen -w server",
     "dev": "npm run dev -w client & npm run dev -w server",
-    "build": "npm run build -w client && npm run build -w server"
+    "build": "npm run build -w client && npm run build -w server",
+    "db:migration:up": "cd client && supabase migration up",
+    "db:migration:new": "cd client && supabase migration new"
   }
 }
