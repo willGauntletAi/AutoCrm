@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { httpBatchLink } from '@trpc/client'
 import { useState } from 'react'
@@ -10,6 +10,7 @@ import Organizations from './pages/Organizations'
 import Tickets from './pages/Tickets'
 import ProtectedRoute from './components/ProtectedRoute'
 import { supabase } from './lib/supabase'
+import Ticket from './pages/Ticket'
 
 function App() {
   const [queryClient] = useState(() => new QueryClient())
@@ -62,6 +63,9 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="/:organization_id/tickets/:ticket_id" element={<Ticket />} />
+            <Route path="/:organization_id/profile" element={<Profile />} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>

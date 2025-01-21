@@ -12,10 +12,17 @@ import {
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import { Label } from './ui/label'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from './ui/select'
 
 interface CreateTicketDialogProps {
     trigger: React.ReactNode
-    onCreateTicket: (title: string, description: string) => void
+    onCreateTicket: (title: string, description: string, priority: 'high' | 'low' | 'medium') => void
     isLoading: boolean
 }
 
@@ -23,12 +30,14 @@ export function CreateTicketDialog({ trigger, onCreateTicket, isLoading }: Creat
     const [open, setOpen] = useState(false)
     const [title, setTitle] = useState('')
     const [description, setDescription] = useState('')
+    const [priority, setPriority] = useState<'high' | 'low' | 'medium'>('medium')
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        onCreateTicket(title, description)
+        onCreateTicket(title, description, priority)
         setTitle('')
         setDescription('')
+        setPriority('medium')
         setOpen(false)
     }
 
@@ -37,10 +46,10 @@ export function CreateTicketDialog({ trigger, onCreateTicket, isLoading }: Creat
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="bg-white">
                 <form onSubmit={handleSubmit}>
                     <DialogHeader>
-                        <DialogTitle>Create Ticket</DialogTitle>
+                        <DialogTitle className="text-gray-900">Create Ticket</DialogTitle>
                         <DialogDescription>
                             Create a new ticket for this organization.
                         </DialogDescription>
@@ -53,8 +62,25 @@ export function CreateTicketDialog({ trigger, onCreateTicket, isLoading }: Creat
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
                                 placeholder="Enter ticket title"
+                                className="bg-white text-gray-900"
                                 required
                             />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="priority">Priority</Label>
+                            <Select
+                                value={priority}
+                                onValueChange={(value) => setPriority(value as 'high' | 'low' | 'medium')}
+                            >
+                                <SelectTrigger className="bg-white text-gray-900">
+                                    <SelectValue placeholder="Select priority" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="low">Low</SelectItem>
+                                    <SelectItem value="medium">Medium</SelectItem>
+                                    <SelectItem value="high">High</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="description">Description</Label>
@@ -63,6 +89,7 @@ export function CreateTicketDialog({ trigger, onCreateTicket, isLoading }: Creat
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 placeholder="Enter ticket description"
+                                className="bg-white text-gray-900"
                                 rows={4}
                             />
                         </div>

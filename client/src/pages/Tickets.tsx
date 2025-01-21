@@ -5,7 +5,7 @@ import { Database } from '../types/database.types'
 import { supabase } from '../lib/supabase'
 import { trpc } from '../lib/trpc'
 import { z } from 'zod'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { Badge } from '../components/ui/badge'
 import { CreateTicketDialog } from '../components/CreateTicketDialog'
 
@@ -100,10 +100,11 @@ export default function Tickets() {
         }
     }, [organization_id])
 
-    const handleCreateTicket = (title: string, description: string) => {
+    const handleCreateTicket = (title: string, description: string, priority: 'high' | 'low' | 'medium') => {
         createTicket.mutate({
             title,
             description,
+            priority,
             organization_id: organization_id!
         })
     }
@@ -162,32 +163,38 @@ export default function Tickets() {
 
                 <div className="grid gap-4">
                     {tickets.map((ticket) => (
-                        <Card key={ticket.id}>
-                            <CardHeader>
-                                <div className="flex justify-between items-start">
-                                    <CardTitle>{ticket.title}</CardTitle>
-                                    <div className="flex gap-2">
-                                        <Badge className={getPriorityColor(ticket.priority)}>
-                                            {ticket.priority}
-                                        </Badge>
-                                        <Badge className={getStatusColor(ticket.status)}>
-                                            {ticket.status}
-                                        </Badge>
+                        <Link
+                            key={ticket.id}
+                            to={`/${organization_id}/tickets/${ticket.id}`}
+                            className="block transition-transform hover:scale-[1.02] focus:scale-[1.02]"
+                        >
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex justify-between items-start">
+                                        <CardTitle>{ticket.title}</CardTitle>
+                                        <div className="flex gap-2">
+                                            <Badge className={getPriorityColor(ticket.priority)}>
+                                                {ticket.priority}
+                                            </Badge>
+                                            <Badge className={getStatusColor(ticket.status)}>
+                                                {ticket.status}
+                                            </Badge>
+                                        </div>
                                     </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                {ticket.description && (
-                                    <p className="text-gray-600 mb-4">{ticket.description}</p>
-                                )}
-                                <div className="text-sm text-gray-500">
-                                    <p>Created {new Date(ticket.created_at || '').toLocaleDateString()}</p>
-                                    {ticket.updated_at && (
-                                        <p>Updated {new Date(ticket.updated_at).toLocaleDateString()}</p>
+                                </CardHeader>
+                                <CardContent>
+                                    {ticket.description && (
+                                        <p className="text-gray-600 mb-4">{ticket.description}</p>
                                     )}
-                                </div>
-                            </CardContent>
-                        </Card>
+                                    <div className="text-sm text-gray-500">
+                                        <p>Created {new Date(ticket.created_at || '').toLocaleDateString()}</p>
+                                        {ticket.updated_at && (
+                                            <p>Updated {new Date(ticket.updated_at).toLocaleDateString()}</p>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </Link>
                     ))}
 
                     {tickets.length === 0 && (

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { router, procedure } from './trpc';
 import { createOrganization, getOrganizations } from './handlers/organization';
-import { createTicket, getTickets } from './handlers/ticket';
+import { createTicket, getTickets, getTicket, getTicketComments, createTicketComment } from './handlers/ticket';
 import { authedProcedure } from './middleware/auth';
 
 export const appRouter = router({
@@ -35,6 +35,7 @@ export const appRouter = router({
         .input(z.object({
             title: z.string().min(1).max(255),
             description: z.string().optional(),
+            priority: z.enum(['low', 'medium', 'high']),
             organization_id: z.string().uuid()
         }))
         .mutation(({ input, ctx }) => {
@@ -51,6 +52,41 @@ export const appRouter = router({
         .query(({ input, ctx }) => {
             return getTickets({
                 organization_id: input.organization_id,
+                userId: ctx.user.id
+            });
+        }),
+
+    getTicket: authedProcedure
+        .input(z.object({
+            ticket_id: z.number()
+        }))
+        .query(({ input, ctx }) => {
+            return getTicket({
+                ticket_id: input.ticket_id,
+                userId: ctx.user.id
+            });
+        }),
+
+    getTicketComments: authedProcedure
+        .input(z.object({
+            ticket_id: z.number()
+        }))
+        .query(({ input, ctx }) => {
+            return getTicketComments({
+                ticket_id: input.ticket_id,
+                userId: ctx.user.id
+            });
+        }),
+
+    createTicketComment: authedProcedure
+        .input(z.object({
+            ticket_id: z.number(),
+            comment: z.string().min(1)
+        }))
+        .mutation(({ input, ctx }) => {
+            return createTicketComment({
+                ticket_id: input.ticket_id,
+                comment: input.comment,
                 userId: ctx.user.id
             });
         }),
