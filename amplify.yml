@@ -12,8 +12,7 @@ applications:
             - mkdir -p ./.amplify-hosting/compute/default
             - cp -r ./client/dist/* ./.amplify-hosting/static
             - cp -r ./server/dist/* ./.amplify-hosting/compute/default
-            - cp ./server/package*.json ./.amplify-hosting/compute/default/
-            - cd ./.amplify-hosting/compute/default && npm ci --production
+            - cp -r ./server/node_modules ./.amplify-hosting/compute/default/
             - echo "DATABASE_URL=$DATABASE_URL\nSUPABASE_URL=$SUPABASE_URL\nSUPABASE_JWT_SECRET=$SUPABASE_JWT_SECRET" > ./.amplify-hosting/compute/default/.env
       artifacts:
         baseDirectory: .amplify-hosting
