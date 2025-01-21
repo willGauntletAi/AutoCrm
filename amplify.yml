@@ -4,11 +4,7 @@ applications:
       phases:
         preBuild:
           commands:
-            - cd client
             - npm ci
-            - cd ../server
-            - npm ci
-            - cd ..
         build:
           commands:
             - npm run build
