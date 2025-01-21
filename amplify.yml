@@ -4,19 +4,15 @@ applications:
       phases:
         preBuild:
           commands:
-            - cd client
             - npm ci
         build:
           commands:
             - npm run build
-            - cd ..
+            - mkdir -p ./.amplify-hosting/static
             - mkdir -p ./.amplify-hosting/compute/default
-            - cp -r ./client/dist/* ./.amplify-hosting
+            - cp -r ./client/dist/* ./.amplify-hosting/static
             - mv ./server/dist/* ./.amplify-hosting/compute/default
       artifacts:
         baseDirectory: .amplify-hosting
         files:
           - '**/*'
-      cache:
-        paths:
-          - client/node_modules/**/*
