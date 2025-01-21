@@ -1,44 +1,42 @@
 import { db } from '../../db';
+import { AuthUser } from '../../types/auth';
+
+interface Context {
+    user: AuthUser;
+}
 
 interface CreateTicketParams {
     title: string;
     description?: string;
     priority: string;
     organization_id: string;
-    userId: string;
+    ctx: Context;
 }
 
 interface GetTicketsParams {
     organization_id: string;
-    userId: string;
+    ctx: Context;
 }
 
 interface GetTicketParams {
     ticket_id: number;
-    userId: string;
+    ctx: Context;
 }
 
 interface GetTicketCommentsParams {
     ticket_id: number;
-    userId: string;
+    ctx: Context;
 }
 
 interface CreateTicketCommentParams {
     ticket_id: number;
     comment: string;
-    userId: string;
+    ctx: Context;
 }
 
-export async function createTicket({ title, description, priority, organization_id, userId }: CreateTicketParams) {
-    // First verify the user is a member of the organization
-    const membership = await db
-        .selectFrom('profile_organization_members')
-        .select('id')
-        .where('profile_id', '=', userId)
-        .where('organization_id', '=', organization_id)
-        .executeTakeFirst();
-
-    if (!membership) {
+export async function createTicket({ title, description, priority, organization_id, ctx }: CreateTicketParams) {
+    // Verify the user is a member of the organization using ctx.user.organizations
+    if (!(organization_id in ctx.user.organizations)) {
         throw new Error('You are not a member of this organization');
     }
 
@@ -48,7 +46,7 @@ export async function createTicket({ title, description, priority, organization_
             title,
             description,
             organization_id,
-            created_by: userId,
+            created_by: ctx.user.id,
             status: 'open',
             priority
         })
@@ -62,16 +60,9 @@ export async function createTicket({ title, description, priority, organization_
     return ticket;
 }
 
-export async function getTickets({ organization_id, userId }: GetTicketsParams) {
-    // First verify the user is a member of the organization
-    const membership = await db
-        .selectFrom('profile_organization_members')
-        .select('id')
-        .where('profile_id', '=', userId)
-        .where('organization_id', '=', organization_id)
-        .executeTakeFirst();
-
-    if (!membership) {
+export async function getTickets({ organization_id, ctx }: GetTicketsParams) {
+    // Verify the user is a member of the organization using ctx.user.organizations
+    if (!(organization_id in ctx.user.organizations)) {
         throw new Error('You are not a member of this organization');
     }
 
@@ -85,7 +76,7 @@ export async function getTickets({ organization_id, userId }: GetTicketsParams) 
     return tickets;
 }
 
-export async function getTicket({ ticket_id, userId }: GetTicketParams) {
+export async function getTicket({ ticket_id, ctx }: GetTicketParams) {
     const ticket = await db
         .selectFrom('tickets')
         .selectAll()
@@ -96,22 +87,15 @@ export async function getTicket({ ticket_id, userId }: GetTicketParams) {
         throw new Error('Ticket not found');
     }
 
-    // Verify the user has access to this ticket's organization
-    const membership = await db
-        .selectFrom('profile_organization_members')
-        .select('id')
-        .where('profile_id', '=', userId)
-        .where('organization_id', '=', ticket.organization_id)
-        .executeTakeFirst();
-
-    if (!membership) {
+    // Verify the user has access to this ticket's organization using ctx.user.organizations
+    if (!(ticket.organization_id in ctx.user.organizations)) {
         throw new Error('You do not have access to this ticket');
     }
 
     return ticket;
 }
 
-export async function getTicketComments({ ticket_id, userId }: GetTicketCommentsParams) {
+export async function getTicketComments({ ticket_id, ctx }: GetTicketCommentsParams) {
     // First get the ticket to verify access
     const ticket = await db
         .selectFrom('tickets')
@@ -123,15 +107,8 @@ export async function getTicketComments({ ticket_id, userId }: GetTicketComments
         throw new Error('Ticket not found');
     }
 
-    // Verify the user has access to this ticket's organization
-    const membership = await db
-        .selectFrom('profile_organization_members')
-        .select('id')
-        .where('profile_id', '=', userId)
-        .where('organization_id', '=', ticket.organization_id)
-        .executeTakeFirst();
-
-    if (!membership) {
+    // Verify the user has access to this ticket's organization using ctx.user.organizations
+    if (!(ticket.organization_id in ctx.user.organizations)) {
         throw new Error('You do not have access to this ticket');
     }
 
@@ -155,7 +132,7 @@ export async function getTicketComments({ ticket_id, userId }: GetTicketComments
     return comments;
 }
 
-export async function createTicketComment({ ticket_id, comment, userId }: CreateTicketCommentParams) {
+export async function createTicketComment({ ticket_id, comment, ctx }: CreateTicketCommentParams) {
     // First get the ticket to verify access
     const ticket = await db
         .selectFrom('tickets')
@@ -167,15 +144,8 @@ export async function createTicketComment({ ticket_id, comment, userId }: Create
         throw new Error('Ticket not found');
     }
 
-    // Verify the user has access to this ticket's organization
-    const membership = await db
-        .selectFrom('profile_organization_members')
-        .select('id')
-        .where('profile_id', '=', userId)
-        .where('organization_id', '=', ticket.organization_id)
-        .executeTakeFirst();
-
-    if (!membership) {
+    // Verify the user has access to this ticket's organization using ctx.user.organizations
+    if (!(ticket.organization_id in ctx.user.organizations)) {
         throw new Error('You do not have access to this ticket');
     }
 
@@ -183,7 +153,7 @@ export async function createTicketComment({ ticket_id, comment, userId }: Create
         .insertInto('ticket_comments')
         .values({
             ticket_id,
-            user_id: userId,
+            user_id: ctx.user.id,
             comment
         })
         .returningAll()
@@ -197,7 +167,7 @@ export async function createTicketComment({ ticket_id, comment, userId }: Create
     const user = await db
         .selectFrom('profiles')
         .select(['id', 'full_name', 'avatar_url'])
-        .where('id', '=', userId)
+        .where('id', '=', ctx.user.id)
         .executeTakeFirst();
 
     return {

@@ -41,7 +41,7 @@ export const appRouter = router({
         .mutation(({ input, ctx }) => {
             return createTicket({
                 ...input,
-                userId: ctx.user.id
+                ctx
             });
         }),
 
@@ -52,7 +52,7 @@ export const appRouter = router({
         .query(({ input, ctx }) => {
             return getTickets({
                 organization_id: input.organization_id,
-                userId: ctx.user.id
+                ctx
             });
         }),
 
@@ -63,7 +63,7 @@ export const appRouter = router({
         .query(({ input, ctx }) => {
             return getTicket({
                 ticket_id: input.ticket_id,
-                userId: ctx.user.id
+                ctx
             });
         }),
 
@@ -74,7 +74,7 @@ export const appRouter = router({
         .query(({ input, ctx }) => {
             return getTicketComments({
                 ticket_id: input.ticket_id,
-                userId: ctx.user.id
+                ctx
             });
         }),
 
@@ -87,7 +87,7 @@ export const appRouter = router({
             return createTicketComment({
                 ticket_id: input.ticket_id,
                 comment: input.comment,
-                userId: ctx.user.id
+                ctx
             });
         }),
 });
