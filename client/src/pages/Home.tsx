@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button'
 import { supabase } from '../lib/supabase'
 import { User } from '@supabase/supabase-js'
 
-export default function Home() {
+export default function Profile() {
     const navigate = useNavigate()
     const [user, setUser] = useState<User | null>(null)
 

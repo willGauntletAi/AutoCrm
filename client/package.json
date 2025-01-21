@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "type-gen": "supabase gen types typescript --local --schema public > src/types/database.types.ts",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

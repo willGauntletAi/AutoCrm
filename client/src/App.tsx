@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Login from './pages/Login'
 import Register from './pages/Register'
-import Home from './pages/Home'
+import Profile from './pages/Home'
+import Organizations from './pages/Organizations'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -14,7 +15,15 @@ function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <Home />
+              <Organizations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
             </ProtectedRoute>
           }
         />
