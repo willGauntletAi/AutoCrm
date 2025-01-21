@@ -6,6 +6,7 @@ import { trpc } from './lib/trpc'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Profile from './pages/Profile'
+import CreateProfile from './pages/CreateProfile'
 import Organizations from './pages/Organizations'
 import ProtectedRoute from './components/ProtectedRoute'
 import { supabase } from './lib/supabase'
@@ -39,6 +40,14 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route
+              path="/create-profile"
+              element={
+                <ProtectedRoute>
+                  <CreateProfile />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/"
               element={

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { router, procedure } from './trpc';
 import { createOrganization, getOrganizations } from './handlers/organization';
 import { createTicket, getTickets, getTicket, getTicketComments, createTicketComment } from './handlers/ticket';
+import { getProfile, createProfile } from './handlers/profile';
 import { authedProcedure } from './middleware/auth';
 
 export const appRouter = router({
@@ -11,6 +12,26 @@ export const appRouter = router({
             return {
                 greeting: `Hello ${input?.name ?? 'world'}!`,
             };
+        }),
+
+    getProfile: authedProcedure
+        .query(({ ctx }) => {
+            return getProfile({
+                userId: ctx.user.id
+            });
+        }),
+
+    createProfile: authedProcedure
+        .input(z.object({
+            fullName: z.string().min(1).max(255),
+            avatarUrl: z.string().url().nullish(),
+        }))
+        .mutation(({ input, ctx }) => {
+            return createProfile({
+                userId: ctx.user.id,
+                fullName: input.fullName,
+                avatarUrl: input.avatarUrl,
+            });
         }),
 
     createOrganization: authedProcedure

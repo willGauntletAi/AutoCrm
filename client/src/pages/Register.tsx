@@ -25,19 +25,12 @@ export default function Register() {
 
         try {
             setLoading(true)
-            const { error, data } = await supabase.auth.signUp({
+            const { error } = await supabase.auth.signUp({
                 email,
                 password,
             })
 
             if (error) throw error
-
-            // Create a profile record for the user
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .insert([{ id: data.user!.id }])
-
-            if (profileError) throw profileError
 
             // Registration successful
             navigate('/login')
