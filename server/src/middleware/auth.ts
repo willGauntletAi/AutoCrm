@@ -1,13 +1,14 @@
 import { TRPCError } from '@trpc/server';
 import type { Context } from '../context';
-import { middleware } from '../trpc';
+import { t, procedure } from '../trpc';
+import type { inferAsyncReturnType } from '@trpc/server';
 
 // Define a type for the authenticated context
 export type AuthenticatedContext = Context & {
     user: NonNullable<Context['user']>;
 };
 
-export const isAuthed = middleware(({ next, ctx }) => {
+export const isAuthed = t.middleware(async ({ next, ctx }) => {
     const user = ctx.user;
     if (!user) {
         throw new TRPCError({
@@ -22,4 +23,7 @@ export const isAuthed = middleware(({ next, ctx }) => {
             user,
         } satisfies AuthenticatedContext,
     });
-}); 
+});
+
+// Create an authenticated procedure by applying the auth middleware
+export const authedProcedure = procedure.use(isAuthed); 

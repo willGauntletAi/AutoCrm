@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { router, procedure, authedProcedure } from './trpc';
+import { router, procedure } from './trpc';
 import { createOrganization } from './handlers/organization';
+import { authedProcedure } from './middleware/auth';
 
 export const appRouter = router({
     hello: procedure
