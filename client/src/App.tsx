@@ -7,9 +7,9 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Profile from './pages/Profile'
 import Organizations from './pages/Organizations'
-import Tickets from './pages/Tickets'
 import ProtectedRoute from './components/ProtectedRoute'
 import { supabase } from './lib/supabase'
+import Tickets from './pages/Tickets'
 import Ticket from './pages/Ticket'
 
 function App() {
@@ -18,7 +18,7 @@ function App() {
     trpc.createClient({
       links: [
         httpBatchLink({
-          url: 'http://localhost:3000/trpc',
+          url: import.meta.env.PROD ? 'https://main.d3ldm7n78gdygc.amplifyapp.com/trpc' : 'http://localhost:3000/trpc',
           // You can pass any HTTP headers you wish here
           async headers() {
             const { data: { session } } = await supabase.auth.getSession()
