@@ -1,13 +1,18 @@
 import { TRPCError } from '@trpc/server';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import type { AuthUser } from '../types/auth';
+import jwt from 'jsonwebtoken';
 import { db } from '../db';
 import { env } from './env';
 
+export type AuthUser = {
+    id: string;
+    email: string;
+    role: string;
+    fullName: string | null;
+    organizations: Record<string, string>;
+};
+
 const SupabaseJWTSchema = z.object({
-    aud: z.string(),
-    exp: z.number(),
     sub: z.string(),
     email: z.string().optional(),
     phone: z.string().optional(),
@@ -17,15 +22,16 @@ const SupabaseJWTSchema = z.object({
     user_metadata: z.record(z.any()),
     role: z.string().optional(),
     session_id: z.string(),
+    aud: z.string(),
+    iat: z.number(),
+    exp: z.number(),
 });
-
-type SupabaseJWT = z.infer<typeof SupabaseJWTSchema>;
 
 export async function verifyAuth(token: string | undefined): Promise<AuthUser> {
     if (!token) {
         throw new TRPCError({
             code: 'UNAUTHORIZED',
-            message: 'Missing authorization token',
+            message: 'No token provided',
         });
     }
 
@@ -35,7 +41,7 @@ export async function verifyAuth(token: string | undefined): Promise<AuthUser> {
 
         // Verify the JWT
         const payload = jwt.verify(jwt_token, env.SUPABASE_JWT_SECRET, {
-            issuer: env.SUPABASE_URL,
+            issuer: `${env.SUPABASE_URL}/auth/v1`,
             algorithms: ['HS256'],
         });
 
@@ -51,7 +57,7 @@ export async function verifyAuth(token: string | undefined): Promise<AuthUser> {
         // Fetch the user and their profile
         const user = await db
             .selectFrom('auth.sessions')
-            .where('id', '=', session_id)
+            .where('auth.sessions.id', '=', session_id)
             .where('user_id', '=', sub)
             .innerJoin('auth.users', 'auth.users.id', 'auth.sessions.user_id')
             .leftJoin('profiles', 'profiles.id', 'auth.users.id')
@@ -100,6 +106,7 @@ export async function verifyAuth(token: string | undefined): Promise<AuthUser> {
                 message: 'Token expired',
             });
         }
+        console.error('JWT verification failed:', error);
         throw new TRPCError({
             code: 'UNAUTHORIZED',
             message: 'Invalid authorization token',

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { router, procedure } from './trpc';
-import { createOrganization } from './handlers/organization';
+import { createOrganization, getOrganizations } from './handlers/organization';
 import { authedProcedure } from './middleware/auth';
 
 export const appRouter = router({
@@ -19,6 +19,13 @@ export const appRouter = router({
         .mutation(({ input, ctx }) => {
             return createOrganization({
                 name: input.name,
+                userId: ctx.user.id
+            });
+        }),
+
+    getOrganizations: authedProcedure
+        .query(({ ctx }) => {
+            return getOrganizations({
                 userId: ctx.user.id
             });
         }),

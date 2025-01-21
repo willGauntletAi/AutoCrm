@@ -26,4 +26,17 @@ export async function createOrganization(params: {
 
         return organization;
     });
+}
+
+export async function getOrganizations(params: {
+    userId: string;
+}) {
+    const result = await db
+        .selectFrom('profile_organization_members')
+        .innerJoin('organizations', 'organizations.id', 'profile_organization_members.organization_id')
+        .select(['organizations.id', 'organizations.name', 'organizations.created_at'])
+        .where('profile_organization_members.profile_id', '=', params.userId)
+        .execute();
+
+    return result;
 } 

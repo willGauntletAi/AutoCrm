@@ -1,92 +1,46 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { supabase } from '../lib/supabase'
 import { Database } from '../types/database.types'
+import { trpc } from '../lib/trpc'
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "../components/ui/dialog"
+import { Input } from "../components/ui/input"
 
 type Organization = Database['public']['Tables']['organizations']['Row']
 
-type OrganizationResponse = {
-    organization: Organization | null
-}
-
 export default function Organizations() {
-    const [organizations, setOrganizations] = useState<Organization[]>([])
-    const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [newOrgName, setNewOrgName] = useState('')
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-    useEffect(() => {
-        async function fetchOrganizations() {
-            try {
-                const { data: { user } } = await supabase.auth.getUser()
-                if (!user) return
-
-                const { data, error } = await supabase
-                    .from('profile_organization_members')
-                    .select(`
-                        organization:organizations (
-                            id,
-                            name,
-                            created_at
-                        )
-                    `)
-                    .eq('profile_id', user.id)
-                    .returns<OrganizationResponse[]>()
-
-                if (error) throw error
-
-                // Extract organizations from the nested structure
-                const orgs = data
-                    .map(item => item.organization)
-                    .filter((org): org is Organization => org !== null)
-
-                setOrganizations(orgs)
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'Failed to fetch organizations')
-            } finally {
-                setLoading(false)
-            }
+    const { data: organizations, isLoading } = trpc.getOrganizations.useQuery<Organization[]>(undefined, {
+        onError: (err) => {
+            setError(err.message)
         }
+    })
 
-        fetchOrganizations()
-    }, [])
+    const createOrganization = trpc.createOrganization.useMutation<Organization>({
+        onSuccess: () => {
+            setNewOrgName('')
+            setIsDialogOpen(false)
+        },
+        onError: (err) => {
+            setError(err.message)
+        }
+    })
 
     const handleCreateOrganization = async () => {
-        const name = prompt('Enter organization name:')
-        if (!name) return
-
-        try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
-            // Insert new organization
-            const { data: orgData, error: orgError } = await supabase
-                .from('organizations')
-                .insert([{ name }])
-                .select()
-                .single()
-
-            if (orgError) throw orgError
-
-            // Add current user as a member
-            const { error: memberError } = await supabase
-                .from('profile_organization_members')
-                .insert([{
-                    organization_id: orgData.id,
-                    profile_id: user.id,
-                    role: 'admin'
-                }])
-
-            if (memberError) throw memberError
-
-            // Add new organization to state
-            setOrganizations(prev => [...prev, orgData])
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to create organization')
-        }
+        if (!newOrgName) return
+        createOrganization.mutate({ name: newOrgName })
     }
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -99,9 +53,32 @@ export default function Organizations() {
             <div className="max-w-4xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-4xl font-bold">Organizations</h1>
-                    <Button onClick={handleCreateOrganization}>
-                        Create Organization
-                    </Button>
+                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button>Create Organization</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Create New Organization</DialogTitle>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                                <div className="flex flex-col gap-2">
+                                    <Input
+                                        id="name"
+                                        placeholder="Organization name"
+                                        value={newOrgName}
+                                        onChange={(e) => setNewOrgName(e.target.value)}
+                                    />
+                                </div>
+                                <Button
+                                    onClick={handleCreateOrganization}
+                                    disabled={createOrganization.isLoading}
+                                >
+                                    {createOrganization.isLoading ? 'Creating...' : 'Create'}
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
                 </div>
 
                 {error && (
@@ -111,7 +88,7 @@ export default function Organizations() {
                 )}
 
                 <div className="grid gap-4">
-                    {organizations.map((org) => (
+                    {organizations?.map((org) => (
                         <Card key={org.id}>
                             <CardHeader>
                                 <CardTitle>{org.name}</CardTitle>
@@ -124,16 +101,37 @@ export default function Organizations() {
                         </Card>
                     ))}
 
-                    {organizations.length === 0 && (
+                    {organizations?.length === 0 && (
                         <div className="text-center p-8 bg-gray-50 rounded-lg">
                             <p className="text-gray-600">You don't have any organizations yet.</p>
-                            <Button
-                                variant="link"
-                                onClick={handleCreateOrganization}
-                                className="mt-2"
-                            >
-                                Create your first organization
-                            </Button>
+                            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="link" className="mt-2">
+                                        Create your first organization
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Create New Organization</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="grid gap-4 py-4">
+                                        <div className="flex flex-col gap-2">
+                                            <Input
+                                                id="name"
+                                                placeholder="Organization name"
+                                                value={newOrgName}
+                                                onChange={(e) => setNewOrgName(e.target.value)}
+                                            />
+                                        </div>
+                                        <Button
+                                            onClick={handleCreateOrganization}
+                                            disabled={createOrganization.isLoading}
+                                        >
+                                            {createOrganization.isLoading ? 'Creating...' : 'Create'}
+                                        </Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                         </div>
                     )}
                 </div>

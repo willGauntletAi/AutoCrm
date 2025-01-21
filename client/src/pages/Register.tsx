@@ -61,43 +61,49 @@ export default function Register() {
                             </div>
                         )}
                         <div className="space-y-2">
-                            <Label htmlFor="email" className="text-gray-900">Email address</Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                                placeholder="Enter your email"
-                                className="text-gray-900"
-                                disabled={loading}
-                            />
+                            <Label htmlFor="email">Email address</Label>
+                            <div className="mt-2">
+                                <Input
+                                    id="email"
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                    placeholder="Enter your email"
+                                    className="text-gray-900"
+                                    disabled={loading}
+                                />
+                            </div>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="password" className="text-gray-900">Password</Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                placeholder="Create a password"
-                                className="text-gray-900"
-                                disabled={loading}
-                            />
+                            <Label htmlFor="password">Password</Label>
+                            <div className="mt-2">
+                                <Input
+                                    id="password"
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                    placeholder="Create a password"
+                                    className="text-gray-900"
+                                    disabled={loading}
+                                />
+                            </div>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="confirmPassword" className="text-gray-900">Confirm Password</Label>
-                            <Input
-                                id="confirmPassword"
-                                type="password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                required
-                                placeholder="Confirm your password"
-                                className="text-gray-900"
-                                disabled={loading}
-                            />
+                            <Label htmlFor="confirmPassword">Confirm Password</Label>
+                            <div className="mt-2">
+                                <Input
+                                    id="confirmPassword"
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    required
+                                    placeholder="Confirm your password"
+                                    className="text-gray-900"
+                                    disabled={loading}
+                                />
+                            </div>
                         </div>
                         <Button type="submit" className="w-full" disabled={loading}>
                             {loading ? 'Creating account...' : 'Create account'}
