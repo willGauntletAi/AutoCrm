@@ -1,8 +1,13 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import { appRouter } from './router';
 import { createContext } from './context';
+import { env } from './utils/env';
+
+// Validate environment variables before starting the server
+console.log(`Starting server in ${env.NODE_ENV} mode`);
 
 const app = express();
 
@@ -18,8 +23,6 @@ app.use(
     })
 );
 
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+app.listen(env.PORT, () => {
+    console.log(`🚀 Server listening on port ${env.PORT}`);
 }); 
