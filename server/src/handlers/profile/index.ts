@@ -1,9 +1,4 @@
 import { db } from '../../db';
-import { AuthUser } from '../../types/auth';
-
-interface Context {
-    user: AuthUser;
-}
 
 interface GetProfileParams {
     userId: string;
