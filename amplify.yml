@@ -16,7 +16,12 @@ applications:
             - rm -rf ./node_modules
             - npm ci --install-strategy=nested --omit=dev --workspace=server
             - cp -r ./node_modules/* ./.amplify-hosting/compute/default/node_modules/
-            - echo "DATABASE_URL=$DATABASE_URL\nSUPABASE_URL=$SUPABASE_URL\nSUPABASE_JWT_SECRET=$SUPABASE_JWT_SECRET" > ./.amplify-hosting/compute/default/.env
+            - |
+              cat > ./.amplify-hosting/compute/default/.env << EOL
+              DATABASE_URL=${DATABASE_URL}
+              SUPABASE_URL=${SUPABASE_URL}
+              SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+              EOL
       artifacts:
         baseDirectory: .amplify-hosting
         files:
