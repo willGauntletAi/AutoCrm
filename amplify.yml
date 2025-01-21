@@ -14,6 +14,7 @@ applications:
         baseDirectory: .amplify-hosting
         files:
           - '**/*'
+      appRoot: .amplify-hosting/static
   - backend:
       phases:
         preBuild:
@@ -28,3 +29,4 @@ applications:
         baseDirectory: .amplify-hosting/compute/default
         files:
           - '**/*'
+      appRoot: .amplify-hosting/compute/default
