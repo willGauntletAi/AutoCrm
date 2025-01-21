@@ -8,8 +8,10 @@ applications:
         build:
           commands:
             - npm run build
-            - mv ./client/dist ../.amplify-hosting/static
-            - mv ./server/dist ../.amplify-hosting/compute/default
+            - mkdir -p ./.amplify-hosting/static
+            - mkdir -p ./.amplify-hosting/compute/default
+            - mv ./client/dist ./.amplify-hosting/static
+            - mv ./server/dist ./.amplify-hosting/compute/default
       artifacts:
         baseDirectory: .amplify-hosting
         files:
