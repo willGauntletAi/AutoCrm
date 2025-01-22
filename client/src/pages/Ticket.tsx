@@ -1,225 +1,84 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Textarea } from '../components/ui/textarea'
-import { Database } from '../types/database.types'
-import { supabase } from '../lib/supabase'
-import { trpc } from '../lib/trpc'
-import { z } from 'zod'
-
-type Ticket = Database['public']['Tables']['tickets']['Row']
-type TicketComment = {
-    id: number
-    ticket_id: number
-    user_id: string
-    comment: string
-    created_at: string | null
-    user_full_name: string | null
-    user_avatar_url: string | null
-}
-
-const ticketSchema = z.object({
-    id: z.union([z.number(), z.string()]).transform(val => Number(val)),
-    title: z.string(),
-    description: z.string().nullable(),
-    status: z.string(),
-    priority: z.string(),
-    created_by: z.string(),
-    assigned_to: z.string().nullable(),
-    organization_id: z.string(),
-    created_at: z.string().nullable(),
-    updated_at: z.string().nullable()
-})
-
-const ticketCommentSchema = z.object({
-    id: z.union([z.number(), z.string()]).transform(val => Number(val)),
-    ticket_id: z.union([z.number(), z.string()]).transform(val => Number(val)),
-    user_id: z.string(),
-    comment: z.string(),
-    created_at: z.string().nullable(),
-    user_full_name: z.string().nullable(),
-    user_avatar_url: z.string().nullable()
-})
+import { db } from '../lib/db'
+import { create } from '../lib/mutations'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { useAuth } from '../lib/auth'
 
 export default function Ticket() {
     const { organization_id, ticket_id } = useParams<{ organization_id: string, ticket_id: string }>()
     const [error, setError] = useState<string | null>(null)
-    const [ticket, setTicket] = useState<Ticket | null>(null)
-    const [comments, setComments] = useState<TicketComment[]>([])
     const [newComment, setNewComment] = useState('')
+    const [isCreatingComment, setIsCreatingComment] = useState(false)
+    const { user } = useAuth()
 
-    const { isLoading: isLoadingTicket } = trpc.getTicket.useQuery(
-        { ticket_id: Number(ticket_id) },
-        {
-            onError: (err) => {
-                setError(err.message)
-            },
-            onSuccess: (data) => {
-                const parseResult = ticketSchema.safeParse(data)
-                if (parseResult.success) {
-                    setTicket(parseResult.data)
-                } else {
-                    console.error('Invalid ticket data:', parseResult.error)
-                }
-            }
-        }
-    )
-
-    const { isLoading: isLoadingComments } = trpc.getTicketComments.useQuery(
-        { ticket_id: Number(ticket_id) },
-        {
-            onError: (err) => {
-                setError(err.message)
-            },
-            onSuccess: (data) => {
-                const validComments = data.map(comment => {
-                    // Ensure ticket_id is present
-                    const commentWithTicketId = {
-                        ...comment,
-                        ticket_id: Number(ticket_id)
-                    }
-                    const parseResult = ticketCommentSchema.safeParse(commentWithTicketId)
-                    if (!parseResult.success) {
-                        console.error('Invalid comment data:', parseResult.error)
-                        return null
-                    }
-                    return parseResult.data
-                }).filter((comment): comment is TicketComment => comment !== null)
-
-                setComments(validComments)
-            }
-        }
-    )
-
-    const createComment = trpc.createTicketComment.useMutation({
-        onError: (err) => {
-            setError(err.message)
+    const ticket = useLiveQuery(
+        async () => {
+            return await db.tickets
+                .where('id')
+                .equals(ticket_id!)
+                .filter(ticket => !ticket.deleted_at)
+                .first()
         },
-        onSuccess: (data) => {
-            const parseResult = ticketCommentSchema.safeParse(data)
-            if (parseResult.success) {
-                setComments(prev => [parseResult.data, ...prev])
-            }
-            setNewComment('')
-        }
-    })
+        [ticket_id]
+    )
 
-    useEffect(() => {
-        // Set up real-time subscription for ticket updates
-        const ticketSubscription = supabase
-            .channel('ticket')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'tickets',
-                    filter: `id=eq.${ticket_id}`
-                },
-                (payload) => {
-                    if (payload.eventType === 'UPDATE') {
-                        const parseResult = ticketSchema.safeParse(payload.new)
-                        if (parseResult.success) {
-                            setTicket(parseResult.data)
-                        } else {
-                            console.error('Invalid ticket data:', parseResult.error)
-                        }
-                    }
-                }
-            )
-            .subscribe()
+    const comments = useLiveQuery(
+        async () => {
+            const ticketComments = await db.ticketComments
+                .where('ticket_id')
+                .equals(ticket_id!)
+                .filter(comment => !comment.deleted_at)
+                .reverse()
+                .toArray()
 
-        // Set up real-time subscription for comments
-        const commentsSubscription = supabase
-            .channel('ticket_comments')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'ticket_comments',
-                    filter: `ticket_id=eq.${ticket_id}`
-                },
-                async (payload) => {
-                    if (payload.eventType === 'INSERT') {
-                        const session = await supabase.auth.getSession()
-                        if (payload.new.user_id === session.data.session?.user.id) return
+            // Fetch user info for each comment
+            const userIds = [...new Set(ticketComments.map(comment => comment.user_id))]
+            const users = await db.profiles
+                .where('id')
+                .anyOf(userIds)
+                .toArray()
 
-                        // Fetch user info for the new comment
-                        const { data: userData } = await supabase
-                            .from('profiles')
-                            .select('full_name, avatar_url')
-                            .eq('id', payload.new.user_id)
-                            .single()
+            // Create a map of user info
+            const userMap = new Map(users.map(user => [user.id, user]))
 
-                        const newComment = {
-                            ...payload.new,
-                            id: Number(payload.new.id),
-                            ticket_id: Number(payload.new.ticket_id),
-                            user_full_name: userData?.full_name ?? null,
-                            user_avatar_url: userData?.avatar_url ?? null
-                        }
+            // Attach user info to comments
+            return ticketComments.map(comment => ({
+                ...comment,
+                user_full_name: userMap.get(comment.user_id)?.full_name ?? null,
+                user_avatar_url: userMap.get(comment.user_id)?.avatar_url ?? null
+            }))
+        },
+        [ticket_id],
+        []
+    )
 
-                        const parseResult = ticketCommentSchema.safeParse(newComment)
-                        if (parseResult.success) {
-                            setComments(prev => [parseResult.data, ...prev])
-                        } else {
-                            console.error('Invalid comment data:', parseResult.error)
-                        }
-                    } else if (payload.eventType === 'UPDATE') {
-                        const session = await supabase.auth.getSession()
-                        if (payload.new.user_id === session.data.session?.user.id) return
-
-                        // Fetch user info for the updated comment
-                        const { data: userData } = await supabase
-                            .from('profiles')
-                            .select('full_name, avatar_url')
-                            .eq('id', payload.new.user_id)
-                            .single()
-
-                        const updatedComment = {
-                            ...payload.new,
-                            id: Number(payload.new.id),
-                            ticket_id: Number(payload.new.ticket_id),
-                            user_full_name: userData?.full_name ?? null,
-                            user_avatar_url: userData?.avatar_url ?? null
-                        }
-
-                        const parseResult = ticketCommentSchema.safeParse(updatedComment)
-                        if (parseResult.success) {
-                            setComments(prev => prev.map(comment =>
-                                comment.id === parseResult.data.id ? parseResult.data : comment
-                            ))
-                        } else {
-                            console.error('Invalid comment data:', parseResult.error)
-                        }
-                    } else if (payload.eventType === 'DELETE') {
-                        setComments(prev => prev.filter(comment => comment.id !== Number(payload.old.id)))
-                    }
-                }
-            )
-            .subscribe()
-
-        // Cleanup subscriptions
-        return () => {
-            ticketSubscription.unsubscribe()
-            commentsSubscription.unsubscribe()
-        }
-    }, [ticket_id])
-
-    const handleSubmitComment = (e: React.FormEvent) => {
+    const handleSubmitComment = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!newComment.trim()) return
+        if (!newComment.trim() || !user) return
 
-        createComment.mutate({
-            ticket_id: Number(ticket_id),
-            comment: newComment.trim()
-        })
+        try {
+            setIsCreatingComment(true)
+            setError(null)
+            await create('ticket_comments', {
+                ticket_id: ticket_id!,
+                comment: newComment.trim(),
+                user_id: user.id,
+                created_at: new Date().toISOString()
+            })
+            setNewComment('')
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create comment')
+        } finally {
+            setIsCreatingComment(false)
+        }
     }
 
-    if (isLoadingTicket || isLoadingComments) {
+    if (!ticket || !comments) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -268,36 +127,34 @@ export default function Ticket() {
                             {error}
                         </div>
                     )}
-                    {ticket && (
-                        <Card>
-                            <CardHeader>
-                                <div className="flex justify-between items-start">
-                                    <CardTitle className="text-2xl">{ticket.title}</CardTitle>
-                                    <div className="flex gap-2">
-                                        <Badge className={getPriorityColor(ticket.priority)}>
-                                            {ticket.priority}
-                                        </Badge>
-                                        <Badge className={getStatusColor(ticket.status)}>
-                                            {ticket.status}
-                                        </Badge>
-                                    </div>
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-start">
+                                <CardTitle className="text-2xl">{ticket.title}</CardTitle>
+                                <div className="flex gap-2">
+                                    <Badge className={getPriorityColor(ticket.priority)}>
+                                        {ticket.priority}
+                                    </Badge>
+                                    <Badge className={getStatusColor(ticket.status)}>
+                                        {ticket.status}
+                                    </Badge>
                                 </div>
-                            </CardHeader>
-                            <CardContent>
-                                {ticket.description && (
-                                    <p className="text-gray-600 mb-4 whitespace-pre-wrap">
-                                        {ticket.description}
-                                    </p>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {ticket.description && (
+                                <p className="text-gray-600 mb-4 whitespace-pre-wrap">
+                                    {ticket.description}
+                                </p>
+                            )}
+                            <div className="text-sm text-gray-500">
+                                <p>Created {new Date(ticket.created_at || '').toLocaleDateString()}</p>
+                                {ticket.updated_at && (
+                                    <p>Updated {new Date(ticket.updated_at).toLocaleDateString()}</p>
                                 )}
-                                <div className="text-sm text-gray-500">
-                                    <p>Created {new Date(ticket.created_at || '').toLocaleDateString()}</p>
-                                    {ticket.updated_at && (
-                                        <p>Updated {new Date(ticket.updated_at).toLocaleDateString()}</p>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 <div className="space-y-4">
@@ -310,9 +167,9 @@ export default function Ticket() {
                         />
                         <Button
                             type="submit"
-                            disabled={createComment.isLoading || !newComment.trim()}
+                            disabled={isCreatingComment || !newComment.trim()}
                         >
-                            {createComment.isLoading ? 'Posting...' : 'Post Comment'}
+                            {isCreatingComment ? 'Posting...' : 'Post Comment'}
                         </Button>
                     </form>
 

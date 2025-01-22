@@ -1,115 +1,59 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { Database } from '../types/database.types'
-import { supabase } from '../lib/supabase'
-import { trpc } from '../lib/trpc'
-import { z } from 'zod'
 import { useParams, Link } from 'react-router-dom'
 import { Badge } from '../components/ui/badge'
 import { CreateTicketDialog } from '../components/CreateTicketDialog'
-
-type Ticket = Database['public']['Tables']['tickets']['Row']
-
-const ticketSchema = z.object({
-    id: z.union([z.number(), z.string()]).transform(val => Number(val)),
-    title: z.string(),
-    description: z.string().nullable(),
-    status: z.string(),
-    priority: z.string(),
-    created_by: z.string(),
-    assigned_to: z.string().nullable(),
-    organization_id: z.string(),
-    created_at: z.string().nullable(),
-    updated_at: z.string().nullable()
-})
+import { db } from '../lib/db'
+import { create } from '../lib/mutations'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { useAuth } from '@/lib/auth'
 
 export default function Tickets() {
     const { organization_id } = useParams<{ organization_id: string }>()
     const [error, setError] = useState<string | null>(null)
-    const [tickets, setTickets] = useState<Ticket[]>([])
+    const [isCreatingTicket, setIsCreatingTicket] = useState(false)
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const { user } = useAuth()
 
-    const { isLoading } = trpc.getTickets.useQuery(
-        { organization_id: organization_id! },
-        {
-            onError: (err) => {
-                setError(err.message)
-            },
-            onSuccess: (data) => {
-                // Validate and set the initial data
-                console.log(data)
-                const validTickets = data.map(ticket => {
-                    const parseResult = ticketSchema.safeParse(ticket)
-                    if (!parseResult.success) {
-                        console.error('Invalid ticket data:', parseResult.error)
-                        return null
-                    }
-                    return parseResult.data
-                }).filter((ticket) => ticket !== null)
-
-                setTickets(validTickets)
-            }
-        }
+    const tickets = useLiveQuery(
+        async () => {
+            return await db.tickets
+                .where('organization_id')
+                .equals(organization_id!)
+                .filter(ticket => !ticket.deleted_at)
+                .reverse()
+                .toArray()
+        },
+        [organization_id],
+        []
     )
 
-    const createTicket = trpc.createTicket.useMutation<Ticket>({
-        onError: (err) => {
-            setError(err.message)
+    const handleCreateTicket = async (data: { title: string; description: string; priority: 'high' | 'low' | 'medium' }) => {
+        if (!user) return
+
+        try {
+            setIsCreatingTicket(true)
+            setError(null)
+            await create('tickets', {
+                title: data.title,
+                description: data.description,
+                priority: data.priority,
+                organization_id: organization_id!,
+                status: 'open',
+                created_by: user.id,
+                assigned_to: null,
+                created_at: new Date().toISOString()
+            })
+            setIsDialogOpen(false)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create ticket')
+        } finally {
+            setIsCreatingTicket(false)
         }
-    })
-
-    useEffect(() => {
-        // Set up real-time subscription
-        const subscription = supabase
-            .channel('tickets')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'tickets',
-                    filter: `organization_id=eq.${organization_id}`
-                },
-                (payload) => {
-                    if (payload.eventType === 'INSERT') {
-                        const parseResult = ticketSchema.safeParse(payload.new)
-                        if (parseResult.success) {
-                            setTickets(prev => [parseResult.data, ...prev])
-                        } else {
-                            console.error('Invalid ticket data:', parseResult.error)
-                        }
-                    } else if (payload.eventType === 'DELETE') {
-                        setTickets(prev => prev.filter(ticket => ticket.id !== payload.old.id))
-                    } else if (payload.eventType === 'UPDATE') {
-                        const parseResult = ticketSchema.safeParse(payload.new)
-                        if (parseResult.success) {
-                            setTickets(prev => prev.map(ticket =>
-                                ticket.id === parseResult.data.id ? parseResult.data : ticket
-                            ))
-                        } else {
-                            console.error('Invalid ticket data:', parseResult.error)
-                        }
-                    }
-                }
-            )
-            .subscribe()
-
-        // Cleanup subscription
-        return () => {
-            subscription.unsubscribe()
-        }
-    }, [organization_id])
-
-    const handleCreateTicket = (title: string, description: string, priority: 'high' | 'low' | 'medium') => {
-        createTicket.mutate({
-            title,
-            description,
-            priority,
-            organization_id: organization_id!
-        })
     }
 
-    if (isLoading) {
+    if (!tickets) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -146,29 +90,24 @@ export default function Tickets() {
     return (
         <div className="min-h-screen p-4">
             <div className="max-w-4xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-4xl font-bold">Tickets</h1>
-                    <CreateTicketDialog
-                        trigger={<Button>Create Ticket</Button>}
-                        onCreateTicket={handleCreateTicket}
-                        isLoading={createTicket.isLoading}
-                    />
+                <div className="mb-8">
+                    <div className="flex justify-between items-center mb-4">
+                        <h1 className="text-2xl font-bold">Tickets</h1>
+                        <Button onClick={() => setIsDialogOpen(true)}>
+                            Create Ticket
+                        </Button>
+                    </div>
+                    {error && (
+                        <div className="bg-red-50 text-red-600 p-4 rounded-md mb-4">
+                            {error}
+                        </div>
+                    )}
                 </div>
 
-                {error && (
-                    <div className="bg-red-50 text-red-600 p-4 rounded-md mb-4">
-                        {error}
-                    </div>
-                )}
-
-                <div className="grid gap-4">
+                <div className="space-y-4">
                     {tickets.map((ticket) => (
-                        <Link
-                            key={ticket.id}
-                            to={`/${organization_id}/tickets/${ticket.id}`}
-                            className="block transition-transform hover:scale-[1.02] focus:scale-[1.02]"
-                        >
-                            <Card>
+                        <Link key={ticket.id} to={`/${organization_id}/tickets/${ticket.id}`}>
+                            <Card className="hover:shadow-md transition-shadow">
                                 <CardHeader>
                                     <div className="flex justify-between items-start">
                                         <CardTitle>{ticket.title}</CardTitle>
@@ -184,7 +123,9 @@ export default function Tickets() {
                                 </CardHeader>
                                 <CardContent>
                                     {ticket.description && (
-                                        <p className="text-gray-600 mb-4">{ticket.description}</p>
+                                        <p className="text-gray-600 mb-4 line-clamp-2">
+                                            {ticket.description}
+                                        </p>
                                     )}
                                     <div className="text-sm text-gray-500">
                                         <p>Created {new Date(ticket.created_at || '').toLocaleDateString()}</p>
@@ -196,22 +137,14 @@ export default function Tickets() {
                             </Card>
                         </Link>
                     ))}
-
-                    {tickets.length === 0 && (
-                        <div className="text-center p-8 bg-gray-50 rounded-lg">
-                            <p className="text-gray-600">No tickets found for this organization.</p>
-                            <CreateTicketDialog
-                                trigger={
-                                    <Button variant="link" className="mt-2">
-                                        Create your first ticket
-                                    </Button>
-                                }
-                                onCreateTicket={handleCreateTicket}
-                                isLoading={createTicket.isLoading}
-                            />
-                        </div>
-                    )}
                 </div>
+
+                <CreateTicketDialog
+                    open={isDialogOpen}
+                    onOpenChange={setIsDialogOpen}
+                    onSubmit={handleCreateTicket}
+                    isLoading={isCreatingTicket}
+                />
             </div>
         </div>
     )

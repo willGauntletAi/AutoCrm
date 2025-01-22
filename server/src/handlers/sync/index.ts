@@ -18,6 +18,15 @@ interface SyncParams {
 
 type TableName = keyof Pick<DB, 'profiles' | 'organizations' | 'profile_organization_members' | 'tickets' | 'ticket_comments'>;
 type TableRow<T extends TableName> = Selectable<DB[T]>;
+type test = TableRow<'profiles'>;
+
+interface SyncResponse {
+    profiles?: TableRow<'profiles'>[];
+    organizations?: TableRow<'organizations'>[];
+    profile_organization_members?: TableRow<'profile_organization_members'>[];
+    tickets?: TableRow<'tickets'>[];
+    ticket_comments?: TableRow<'ticket_comments'>[];
+}
 
 // Profile operations
 async function createProfiles(profiles: NonNullable<NonNullable<z.infer<typeof SyncInputSchema>['profiles']>['creates']>, userId: string): Promise<TableRow<'profiles'>[]> {
@@ -337,8 +346,8 @@ async function deleteTicketComments(commentIds: string[], userId: string): Promi
     return results;
 }
 
-export async function sync({ data: input, ctx }: SyncParams) {
-    const results: Record<string, TableRow<TableName>[]> = {};
+export async function sync({ data: input, ctx }: SyncParams): Promise<SyncResponse> {
+    const results: SyncResponse = {};
 
     if (input.profiles) {
         const profileResults: TableRow<'profiles'>[] = [];

@@ -1,101 +1,47 @@
-import { useEffect, useState } from 'react'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { Database } from '../types/database.types'
-import { supabase } from '../lib/supabase'
-import { trpc } from '../lib/trpc'
-import { CreateOrganizationDialog } from '../components/CreateOrganizationDialog'
-import { z } from 'zod'
-import { Link } from 'react-router-dom'
-
-type Organization = Database['public']['Tables']['organizations']['Row']
-
-const organizationSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    created_at: z.string().nullable()
-})
+import { useLiveQuery } from 'dexie-react-hooks';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { CreateOrganizationDialog } from '../components/CreateOrganizationDialog';
+import { Link } from 'react-router-dom';
+import { db } from '../lib/db';
+import type { Organization } from '../lib/db';
+import { create } from '../lib/mutations';
+import { useState } from 'react';
 
 export default function Organizations() {
-    const [error, setError] = useState<string | null>(null)
-    const [organizations, setOrganizations] = useState<Organization[]>([])
+    const [isCreating, setIsCreating] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const { isLoading } = trpc.getOrganizations.useQuery(undefined, {
-        onError: (err) => {
-            setError(err.message)
+    const organizations = useLiveQuery(
+        async () => {
+            return await db.organizations
+                .filter(org => !org.deleted_at)
+                .toArray();
         },
-        onSuccess: (data) => {
-            // Validate and set the initial data
-            const orgs = data.map(org => {
-                const parseResult = organizationSchema.safeParse(org)
-                if (!parseResult.success) {
-                    console.error('Invalid organization data:', parseResult.error)
-                    return null
-                }
-                return parseResult.data
-            }).filter((org): org is Organization => org !== null)
+        [],
+        []
+    );
 
-            setOrganizations(orgs)
+    const handleCreateOrganization = async (name: string) => {
+        try {
+            setIsCreating(true);
+            setError(null);
+            await create('organizations', {
+                name,
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create organization');
+        } finally {
+            setIsCreating(false);
         }
-    })
+    };
 
-    const createOrganization = trpc.createOrganization.useMutation<Organization>({
-        onError: (err) => {
-            setError(err.message)
-        }
-    })
-
-    useEffect(() => {
-        // Set up real-time subscription
-        const subscription = supabase
-            .channel('organizations')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'organizations'
-                },
-                (payload) => {
-                    if (payload.eventType === 'INSERT') {
-                        const parseResult = organizationSchema.safeParse(payload.new)
-                        if (parseResult.success) {
-                            setOrganizations(prev => [...prev, parseResult.data])
-                        } else {
-                            console.error('Invalid organization data:', parseResult.error)
-                        }
-                    } else if (payload.eventType === 'DELETE') {
-                        setOrganizations(prev => prev.filter(org => org.id !== payload.old.id))
-                    } else if (payload.eventType === 'UPDATE') {
-                        const parseResult = organizationSchema.safeParse(payload.new)
-                        if (parseResult.success) {
-                            setOrganizations(prev => prev.map(org =>
-                                org.id === parseResult.data.id ? parseResult.data : org
-                            ))
-                        } else {
-                            console.error('Invalid organization data:', parseResult.error)
-                        }
-                    }
-                }
-            )
-            .subscribe()
-
-        // Cleanup subscription
-        return () => {
-            subscription.unsubscribe()
-        }
-    }, [])
-
-    const handleCreateOrganization = (name: string) => {
-        createOrganization.mutate({ name })
-    }
-
-    if (isLoading) {
+    if (!organizations) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
             </div>
-        )
+        );
     }
 
     return (
@@ -106,7 +52,7 @@ export default function Organizations() {
                     <CreateOrganizationDialog
                         trigger={<Button>Create Organization</Button>}
                         onCreateOrganization={handleCreateOrganization}
-                        isLoading={createOrganization.isLoading}
+                        isLoading={isCreating}
                     />
                 </div>
 
@@ -117,7 +63,7 @@ export default function Organizations() {
                 )}
 
                 <div className="grid gap-4">
-                    {organizations.map((org) => (
+                    {organizations.map((org: Organization) => (
                         <Card key={org.id}>
                             <CardHeader>
                                 <CardTitle>{org.name}</CardTitle>
@@ -143,12 +89,12 @@ export default function Organizations() {
                                     </Button>
                                 }
                                 onCreateOrganization={handleCreateOrganization}
-                                isLoading={createOrganization.isLoading}
+                                isLoading={isCreating}
                             />
                         </div>
                     )}
                 </div>
             </div>
         </div>
-    )
+    );
 } 

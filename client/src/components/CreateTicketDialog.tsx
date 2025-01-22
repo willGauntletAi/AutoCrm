@@ -7,7 +7,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from './ui/dialog'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
@@ -21,31 +20,27 @@ import {
 } from './ui/select'
 
 interface CreateTicketDialogProps {
-    trigger: React.ReactNode
-    onCreateTicket: (title: string, description: string, priority: 'high' | 'low' | 'medium') => void
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    onSubmit: (data: { title: string; description: string; priority: 'high' | 'low' | 'medium' }) => void
     isLoading: boolean
 }
 
-export function CreateTicketDialog({ trigger, onCreateTicket, isLoading }: CreateTicketDialogProps) {
-    const [open, setOpen] = useState(false)
+export function CreateTicketDialog({ open, onOpenChange, onSubmit, isLoading }: CreateTicketDialogProps) {
     const [title, setTitle] = useState('')
     const [description, setDescription] = useState('')
     const [priority, setPriority] = useState<'high' | 'low' | 'medium'>('medium')
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        onCreateTicket(title, description, priority)
+        onSubmit({ title, description, priority })
         setTitle('')
         setDescription('')
         setPriority('medium')
-        setOpen(false)
     }
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                {trigger}
-            </DialogTrigger>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="bg-white">
                 <form onSubmit={handleSubmit}>
                     <DialogHeader>
