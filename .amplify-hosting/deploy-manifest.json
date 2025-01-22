@@ -13,28 +13,9 @@
             }
         },
         {
-            "path": "/assets/*",
-            "target": {
-                "kind": "Static"
-            }
-        },
-        {
-            "path": "/vite.svg",
-            "target": {
-                "kind": "Static"
-            }
-        },
-        {
-            "path": "/favicon.ico",
-            "target": {
-                "kind": "Static"
-            }
-        },
-        {
             "path": "/*",
             "target": {
-                "kind": "Static",
-                "path": "/index.html"
+                "kind": "Static"
             }
         }
     ],

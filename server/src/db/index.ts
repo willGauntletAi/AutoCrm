@@ -4,13 +4,19 @@ import type { DB } from './types'
 import { env } from '../utils/env'
 
 // Initialize Kysely with PostgreSQL
-export const db = new Kysely<DB>({
+export const db = env.NODE_ENV === 'production' ? new Kysely<DB>({
     dialect: new PostgresDialect({
         pool: new Pool({
             connectionString: env.DATABASE_URL,
             ssl: {
                 rejectUnauthorized: false
             }
+        })
+    })
+}) : new Kysely<DB>({
+    dialect: new PostgresDialect({
+        pool: new Pool({
+            connectionString: env.DATABASE_URL,
         })
     })
 })

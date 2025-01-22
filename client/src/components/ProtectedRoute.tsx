@@ -11,7 +11,15 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     const location = useLocation()
     const { data, refetch, isRefetching, isLoading } = trpc.getProfile.useQuery(undefined, {
         enabled: !!user,
-        refetchOnWindowFocus: false
+        refetchOnWindowFocus: false,
+        retry: (failureCount, error: any) => {
+            // Don't retry on 401 errors
+            if (error.data?.httpStatus === 401) {
+                return false
+            }
+            // For other errors, retry up to 3 times
+            return failureCount < 3
+        }
     })
 
     useEffect(() => {
