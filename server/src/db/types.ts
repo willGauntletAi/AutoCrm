@@ -351,8 +351,10 @@ export interface NetHttpResponse {
 
 export interface Organizations {
   created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
   id: Generated<string>;
   name: string;
+  updated_at: Timestamp | null;
 }
 
 export interface PgsodiumDecryptedKey {
@@ -430,17 +432,21 @@ export interface PgsodiumValidKey {
 
 export interface ProfileOrganizationMembers {
   created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
   id: Generated<Int8>;
   organization_id: string;
   profile_id: string;
   role: string | null;
+  updated_at: Timestamp | null;
 }
 
 export interface Profiles {
   avatar_url: string | null;
   created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
   full_name: string | null;
   id: string;
+  updated_at: Timestamp | null;
 }
 
 export interface RealtimeMessages {
@@ -557,8 +563,10 @@ export interface SupabaseMigrationsSchemaMigrations {
 export interface TicketComments {
   comment: string;
   created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
   id: Generated<Int8>;
   ticket_id: Int8;
+  updated_at: Timestamp | null;
   user_id: string;
 }
 
@@ -566,6 +574,7 @@ export interface Tickets {
   assigned_to: string | null;
   created_at: Generated<Timestamp | null>;
   created_by: string;
+  deleted_at: Timestamp | null;
   description: string | null;
   id: Generated<Int8>;
   organization_id: string;

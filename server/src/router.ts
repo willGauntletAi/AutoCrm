@@ -4,6 +4,8 @@ import { createOrganization, getOrganizations } from './handlers/organization';
 import { createTicket, getTickets, getTicket, getTicketComments, createTicketComment } from './handlers/ticket';
 import { getProfile, createProfile } from './handlers/profile';
 import { authedProcedure } from './middleware/auth';
+import { sync } from './handlers/sync';
+import { SyncInputSchema } from './handlers/sync/schema';
 
 export const appRouter = router({
     hello: procedure
@@ -108,6 +110,15 @@ export const appRouter = router({
             return createTicketComment({
                 ticket_id: input.ticket_id,
                 comment: input.comment,
+                ctx
+            });
+        }),
+
+    sync: authedProcedure
+        .input(SyncInputSchema)
+        .mutation(({ input, ctx }) => {
+            return sync({
+                data: input,
                 ctx
             });
         }),

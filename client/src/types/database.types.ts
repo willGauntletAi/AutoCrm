@@ -12,42 +12,54 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string | null
+          deleted_at: string | null
           id: string
           name: string
+          updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          deleted_at?: string | null
           id?: string
           name: string
+          updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          deleted_at?: string | null
           id?: string
           name?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
       profile_organization_members: {
         Row: {
           created_at: string | null
+          deleted_at: string | null
           id: number
           organization_id: string
           profile_id: string
           role: string | null
+          updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          deleted_at?: string | null
           id?: number
           organization_id: string
           profile_id: string
           role?: string | null
+          updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          deleted_at?: string | null
           id?: number
           organization_id?: string
           profile_id?: string
           role?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -70,20 +82,26 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string | null
+          deleted_at: string | null
           full_name: string | null
           id: string
+          updated_at: string | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           full_name?: string | null
           id: string
+          updated_at?: string | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           full_name?: string | null
           id?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -91,22 +109,28 @@ export type Database = {
         Row: {
           comment: string
           created_at: string | null
+          deleted_at: string | null
           id: number
           ticket_id: number
+          updated_at: string | null
           user_id: string
         }
         Insert: {
           comment: string
           created_at?: string | null
+          deleted_at?: string | null
           id?: number
           ticket_id: number
+          updated_at?: string | null
           user_id: string
         }
         Update: {
           comment?: string
           created_at?: string | null
+          deleted_at?: string | null
           id?: number
           ticket_id?: number
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -131,6 +155,7 @@ export type Database = {
           assigned_to: string | null
           created_at: string | null
           created_by: string
+          deleted_at: string | null
           description: string | null
           id: number
           organization_id: string
@@ -143,6 +168,7 @@ export type Database = {
           assigned_to?: string | null
           created_at?: string | null
           created_by: string
+          deleted_at?: string | null
           description?: string | null
           id?: number
           organization_id: string
@@ -155,6 +181,7 @@ export type Database = {
           assigned_to?: string | null
           created_at?: string | null
           created_by?: string
+          deleted_at?: string | null
           description?: string | null
           id?: number
           organization_id?: string
@@ -192,7 +219,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      check_is_org_admin: {
+        Args: {
+          org_id: string
+          user_id: string
+        }
+        Returns: boolean
+      }
+      check_is_org_member: {
+        Args: {
+          org_id: string
+          user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

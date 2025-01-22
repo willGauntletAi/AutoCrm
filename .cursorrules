@@ -1,1 +1,2 @@
 The command to install shadcn components is npx shadcn@latest add {componentName}
+never use the "any" keyword in zod schemas, or in standard typescript code
