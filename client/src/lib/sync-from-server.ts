@@ -1,7 +1,7 @@
 import Dexie from 'dexie';
 import { db } from './db';
 import { supabase } from './supabase';
-import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment } from './db';
+import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation } from './db';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export const CURRENT_USER_KEY = 'currentUserId';
@@ -140,6 +140,96 @@ export async function syncFromServer() {
     }
 }
 
+export async function syncOrganizationData(organizationId: string) {
+    try {
+        // Get latest timestamps from local DB for org-specific data
+        const [
+            membersTimestamp,
+            ticketsTimestamp,
+            commentsTimestamp,
+            invitationsTimestamp
+        ] = await Promise.all([
+            getLatestTimestamp(db.profileOrganizationMembers),
+            getLatestTimestamp(db.tickets),
+            getLatestTimestamp(db.ticketComments),
+            getLatestTimestamp(db.organizationInvitations)
+        ]);
+
+        // Fetch updated data from Supabase for this organization
+        const [
+            { data: members, error: membersError },
+            { data: tickets, error: ticketsError },
+            { data: comments, error: commentsError },
+            { data: invitations, error: invitationsError }
+        ] = await Promise.all([
+            supabase
+                .from('profile_organization_members')
+                .select('*')
+                .eq('organization_id', organizationId)
+                .gte('updated_at', membersTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('tickets')
+                .select('*')
+                .eq('organization_id', organizationId)
+                .gte('updated_at', ticketsTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_comments')
+                .select(`
+                    id,
+                    ticket_id,
+                    user_id,
+                    comment,
+                    created_at,
+                    updated_at,
+                    deleted_at,
+                    tickets!inner(organization_id)
+                `)
+                .eq('tickets.organization_id', organizationId)
+                .gte('updated_at', commentsTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('organization_invitations')
+                .select('*')
+                .eq('organization_id', organizationId)
+                .gte('updated_at', invitationsTimestamp)
+                .is('deleted_at', null)
+        ]);
+
+        // Check for errors
+        if (membersError) throw membersError;
+        if (ticketsError) throw ticketsError;
+        if (commentsError) throw commentsError;
+        if (invitationsError) throw invitationsError;
+
+        // Update local DB
+        await db.transaction('rw', [
+            db.profileOrganizationMembers,
+            db.tickets,
+            db.ticketComments,
+            db.organizationInvitations
+        ], async () => {
+            if (members?.length) {
+                await db.profileOrganizationMembers.bulkPut(members as ProfileOrganizationMember[]);
+            }
+            if (tickets?.length) {
+                await db.tickets.bulkPut(tickets as Ticket[]);
+            }
+            if (comments?.length) {
+                await db.ticketComments.bulkPut(comments as TicketComment[]);
+            }
+            if (invitations?.length) {
+                await db.organizationInvitations.bulkPut(invitations as OrganizationInvitation[]);
+            }
+        });
+
+    } catch (error) {
+        console.error('Error syncing organization data:', error);
+        throw error;
+    }
+}
+
 let realtimeChannel: RealtimeChannel | null = null;
 
 function setupRealtimeSync() {
@@ -204,6 +294,17 @@ function setupRealtimeSync() {
                 await db.ticketComments.delete(payload.old.id);
             } else {
                 await db.ticketComments.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'organization_invitations'
+        }, async (payload: RealtimePostgresChangesPayload<OrganizationInvitation>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.organizationInvitations.delete(payload.old.id);
+            } else {
+                await db.organizationInvitations.put(payload.new);
             }
         })
         .subscribe();

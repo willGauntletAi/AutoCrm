@@ -4,15 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { CreateOrganizationDialog } from '../components/CreateOrganizationDialog';
 import { Link } from 'react-router-dom';
 import { db } from '../lib/db';
-import type { Organization } from '../lib/db';
-import { createOrganization } from '../lib/mutations';
+import type { Organization, OrganizationInvitation } from '../lib/db';
+import { createOrganization, createProfileOrganizationMember, deleteOrganizationInvitation } from '../lib/mutations';
 import { useState } from 'react';
 import OrganizationMembers from '../components/OrganizationMembers';
+import { useAuth } from '../lib/auth';
 
 export default function Organizations() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { user } = useAuth();
 
     const organizations = useLiveQuery(
         async () => {
@@ -21,6 +23,17 @@ export default function Organizations() {
                 .toArray();
         },
         [],
+        []
+    );
+
+    const invitations = useLiveQuery(
+        async () => {
+            if (!user?.email) return [];
+            return await db.organizationInvitations
+                .filter(inv => !inv.deleted_at && inv.email === user.email)
+                .toArray();
+        },
+        [user?.email],
         []
     );
 
@@ -40,7 +53,36 @@ export default function Organizations() {
         }
     };
 
-    if (!organizations) {
+    const handleAcceptInvitation = async (invitation: OrganizationInvitation) => {
+        try {
+            setError(null);
+            if (!user?.id) throw new Error('Not logged in');
+
+            // Create organization membership
+            await createProfileOrganizationMember({
+                id: crypto.randomUUID(),
+                profile_id: user.id,
+                organization_id: invitation.organization_id,
+                role: invitation.role,
+            });
+
+            // Delete the invitation
+            await deleteOrganizationInvitation(invitation.id);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to accept invitation');
+        }
+    };
+
+    const handleRejectInvitation = async (invitation: OrganizationInvitation) => {
+        try {
+            setError(null);
+            await deleteOrganizationInvitation(invitation.id);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to reject invitation');
+        }
+    };
+
+    if (!organizations || !invitations) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -68,6 +110,46 @@ export default function Organizations() {
                     </div>
                 )}
 
+                {invitations.length > 0 && (
+                    <div className="mb-8">
+                        <h2 className="text-2xl font-semibold mb-4">Invitations</h2>
+                        <div className="space-y-4">
+                            {invitations.map((invitation) => (
+                                <Card key={invitation.id}>
+                                    <CardHeader>
+                                        <CardTitle>Invitation to join organization</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm text-gray-500">
+                                                    Role: {invitation.role}
+                                                </p>
+                                                <p className="text-sm text-gray-500">
+                                                    Invited: {new Date(invitation.created_at || '').toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                            <div className="space-x-2">
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() => handleRejectInvitation(invitation)}
+                                                >
+                                                    Reject
+                                                </Button>
+                                                <Button
+                                                    onClick={() => handleAcceptInvitation(invitation)}
+                                                >
+                                                    Accept
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <div className="space-y-8">
                     {organizations.map((org: Organization) => (
                         <div key={org.id} className="space-y-4">
@@ -88,7 +170,7 @@ export default function Organizations() {
                         </div>
                     ))}
 
-                    {organizations.length === 0 && (
+                    {organizations.length === 0 && invitations.length === 0 && (
                         <div className="text-center p-8 bg-gray-50 rounded-lg">
                             <p className="text-gray-600">You don't have any organizations yet.</p>
                             <CreateOrganizationDialog

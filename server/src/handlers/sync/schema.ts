@@ -45,6 +45,13 @@ export const TicketCommentSchema = z.object({
     comment: z.string(),
 });
 
+export const OrganizationInvitationSchema = z.object({
+    id: z.string().uuid(),
+    organization_id: z.string().uuid(),
+    email: z.string(),
+    role: z.string(),
+});
+
 // Define the sync operation schema using a discriminated union
 export const SyncOperationSchema = z.discriminatedUnion('operation', [
     // Profile operations
@@ -107,7 +114,21 @@ export const SyncOperationSchema = z.discriminatedUnion('operation', [
     z.object({
         operation: z.literal('delete_ticket_comment'),
         data: z.object({ id: z.string().uuid() })
-    })
+    }),
+
+    // Organization Invitation operations
+    z.object({
+        operation: z.literal('create_organization_invitation'),
+        data: OrganizationInvitationSchema
+    }),
+    z.object({
+        operation: z.literal('update_organization_invitation'),
+        data: OrganizationInvitationSchema
+    }),
+    z.object({
+        operation: z.literal('delete_organization_invitation'),
+        data: z.object({ id: z.string().uuid() })
+    }),
 ]);
 
 export const SyncInputSchema = z.array(SyncOperationSchema);

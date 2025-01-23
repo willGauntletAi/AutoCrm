@@ -6,6 +6,7 @@ import {
     ProfileOrganizationMemberSchema as ServerProfileOrganizationMemberSchema,
     TicketSchema as ServerTicketSchema,
     TicketCommentSchema as ServerTicketCommentSchema,
+    OrganizationInvitationSchema as ServerOrganizationInvitationSchema,
     SyncOperationSchema,
 } from '../../../server/src/handlers/sync/schema';
 
@@ -22,6 +23,7 @@ export const OrganizationSchema = ServerOrganizationSchema.extend(TimestampField
 export const ProfileOrganizationMemberSchema = ServerProfileOrganizationMemberSchema.extend(TimestampFieldsSchema.shape);
 export const TicketSchema = ServerTicketSchema.extend(TimestampFieldsSchema.shape);
 export const TicketCommentSchema = ServerTicketCommentSchema.extend(TimestampFieldsSchema.shape);
+export const OrganizationInvitationSchema = ServerOrganizationInvitationSchema.extend(TimestampFieldsSchema.shape);
 
 export const SystemMetadataSchema = z.object({
     key: z.string(),
@@ -46,6 +48,7 @@ export type Ticket = z.infer<typeof TicketSchema>;
 export type TicketComment = z.infer<typeof TicketCommentSchema>;
 export type SystemMetadata = z.infer<typeof SystemMetadataSchema>;
 export type Mutation = z.infer<typeof MutationSchema>;
+export type OrganizationInvitation = z.infer<typeof OrganizationInvitationSchema>;
 
 // Define database class
 export class AutoCRMDatabase extends Dexie {
@@ -56,6 +59,7 @@ export class AutoCRMDatabase extends Dexie {
     ticketComments!: Table<TicketComment>;
     system!: Table<SystemMetadata>;
     mutations!: Table<Mutation>;
+    organizationInvitations!: Table<OrganizationInvitation>;
 
     constructor() {
         super('auto-crm');
@@ -67,6 +71,7 @@ export class AutoCRMDatabase extends Dexie {
             ticketComments: '&id, ticket_id, user_id, created_at, updated_at',
             system: '&key',
             mutations: '++id, timestamp, synced',
+            organizationInvitations: '&id, organization_id, email, created_at, updated_at',
         });
 
         // Add hooks to validate data
@@ -117,6 +122,13 @@ export class AutoCRMDatabase extends Dexie {
         });
         this.mutations.hook('updating', (mods) => {
             MutationSchema.partial().parse(mods);
+        });
+
+        this.organizationInvitations.hook('creating', (_, obj) => {
+            OrganizationInvitationSchema.parse(obj);
+        });
+        this.organizationInvitations.hook('updating', (mods) => {
+            OrganizationInvitationSchema.partial().parse(mods);
         });
     }
 }

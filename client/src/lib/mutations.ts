@@ -9,6 +9,7 @@ import {
     type ProfileOrganizationMember,
     type Ticket,
     type TicketComment,
+    type OrganizationInvitation,
     type Mutation
 } from './db';
 
@@ -280,6 +281,60 @@ export async function deleteTicketComment(id: string): Promise<void> {
     await syncToServer();
 }
 
+export async function createOrganizationInvitation(data: Omit<OrganizationInvitation, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const invitationData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.organizationInvitations], async () => {
+        await queueMutation({
+            operation: 'create_organization_invitation',
+            data: invitationData,
+        });
+        await db.organizationInvitations.put(invitationData);
+    });
+    await syncToServer();
+}
+
+export async function updateOrganizationInvitation(id: string, data: Partial<Omit<OrganizationInvitation, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.organizationInvitations], async () => {
+        const existing = await db.organizationInvitations.get(id);
+        if (!existing) {
+            throw new Error(`Organization Invitation ${id} not found`);
+        }
+        const invitationData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_organization_invitation',
+            data: invitationData,
+        });
+        await db.organizationInvitations.update(id, invitationData);
+    });
+    await syncToServer();
+}
+
+export async function deleteOrganizationInvitation(id: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.organizationInvitations], async () => {
+        await queueMutation({
+            operation: 'delete_organization_invitation',
+            data: { id },
+        });
+        await db.organizationInvitations.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
+    });
+    await syncToServer();
+}
+
 // Get all unsynced mutations
 export async function getUnsyncedMutations(): Promise<Operation[]> {
     const mutations = await db.mutations
@@ -346,6 +401,17 @@ export async function applyMutation(operation: Operation): Promise<void> {
 
         case 'delete_ticket_comment':
             await db.ticketComments.update(operation.data.id, {
+                deleted_at: new Date().toISOString(),
+            });
+            break;
+
+        case 'create_organization_invitation':
+        case 'update_organization_invitation':
+            await db.organizationInvitations.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
+            break;
+
+        case 'delete_organization_invitation':
+            await db.organizationInvitations.update(operation.data.id, {
                 deleted_at: new Date().toISOString(),
             });
             break;

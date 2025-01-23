@@ -349,6 +349,16 @@ export interface NetHttpResponse {
   timed_out: boolean | null;
 }
 
+export interface OrganizationInvitations {
+  created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
+  email: string;
+  id: Generated<string>;
+  organization_id: string;
+  role: string;
+  updated_at: Generated<Timestamp | null>;
+}
+
 export interface Organizations {
   created_at: Generated<Timestamp | null>;
   deleted_at: Timestamp | null;
@@ -631,6 +641,7 @@ export interface DB {
   "extensions.pg_stat_statements_info": ExtensionsPgStatStatementsInfo;
   "net._http_response": NetHttpResponse;
   "net.http_request_queue": NetHttpRequestQueue;
+  organization_invitations: OrganizationInvitations;
   organizations: Organizations;
   "pgsodium.decrypted_key": PgsodiumDecryptedKey;
   "pgsodium.key": PgsodiumKey;

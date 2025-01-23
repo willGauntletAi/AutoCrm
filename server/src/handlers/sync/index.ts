@@ -14,7 +14,7 @@ interface SyncParams {
     ctx: Context;
 }
 
-type TableName = keyof Pick<DB, 'profiles' | 'organizations' | 'profile_organization_members' | 'tickets' | 'ticket_comments'>;
+type TableName = keyof Pick<DB, 'profiles' | 'organizations' | 'profile_organization_members' | 'tickets' | 'ticket_comments' | 'organization_invitations'>;
 type TableRow<T extends TableName> = Selectable<DB[T]>;
 
 interface SyncResponse {
@@ -23,6 +23,7 @@ interface SyncResponse {
     profile_organization_members?: TableRow<'profile_organization_members'>[];
     tickets?: TableRow<'tickets'>[];
     ticket_comments?: TableRow<'ticket_comments'>[];
+    organization_invitations?: TableRow<'organization_invitations'>[];
 }
 
 // Profile operations
@@ -605,6 +606,137 @@ async function deleteTicketComment(data: z.infer<typeof SyncInputSchema>[number]
     return existingComment;
 }
 
+// Organization Invitation operations
+async function createOrganizationInvitation(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'create_organization_invitation' }, memberships: Record<string, string>): Promise<TableRow<'organization_invitations'> | null> {
+    // Check if user is an admin of the organization
+    if (memberships[data.data.organization_id] !== 'admin') {
+        return null;
+    }
+
+    try {
+        return await db.insertInto('organization_invitations')
+            .values({
+                id: data.data.id,
+                organization_id: data.data.organization_id,
+                email: data.data.email,
+                role: data.data.role,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('duplicate key')) {
+            // If it's a unique constraint violation, try to get the existing record
+            const existing = await db.selectFrom('organization_invitations')
+                .selectAll()
+                .where('id', '=', data.data.id)
+                .executeTakeFirst();
+
+            if (existing) {
+                return existing;
+            }
+        }
+        // For any other error or if we couldn't find the record, return as if created but deleted
+        const now = new Date();
+        return {
+            id: data.data.id,
+            organization_id: data.data.organization_id,
+            email: data.data.email,
+            role: data.data.role,
+            created_at: now,
+            updated_at: now,
+            deleted_at: now,
+        };
+    }
+}
+
+async function updateOrganizationInvitation(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'update_organization_invitation' }, memberships: Record<string, string>): Promise<TableRow<'organization_invitations'> | null> {
+    // First check if invitation exists
+    const existingInvitation = await db.selectFrom('organization_invitations')
+        .selectAll()
+        .where('id', '=', data.data.id)
+        .executeTakeFirst();
+
+    // Check read permissions
+    if (!existingInvitation || !memberships[existingInvitation.organization_id]) {
+        return null;
+    }
+
+    // If deleted, return as-is
+    if (existingInvitation.deleted_at) {
+        return existingInvitation;
+    }
+
+    // Check write permissions
+    if (memberships[existingInvitation.organization_id] !== 'admin') {
+        return null;
+    }
+
+    try {
+        const updated = await db.updateTable('organization_invitations')
+            .set({
+                ...data.data,
+                // Preserve the organization_id
+                organization_id: existingInvitation.organization_id,
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
+    } catch (error) {
+        // Fall through to return unchanged value
+    }
+
+    return existingInvitation;
+}
+
+async function deleteOrganizationInvitation(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_organization_invitation' }, memberships: Record<string, string>): Promise<TableRow<'organization_invitations'> | null> {
+    // First check if invitation exists
+    const existingInvitation = await db.selectFrom('organization_invitations')
+        .selectAll()
+        .where('id', '=', data.data.id)
+        .executeTakeFirst();
+
+    // Check read permissions
+    if (!existingInvitation || !memberships[existingInvitation.organization_id]) {
+        return null;
+    }
+
+    // If deleted, return as-is
+    if (existingInvitation.deleted_at) {
+        return existingInvitation;
+    }
+
+    // Check delete permissions
+    if (memberships[existingInvitation.organization_id] !== 'admin') {
+        return null;
+    }
+
+    try {
+        const updated = await db.updateTable('organization_invitations')
+            .set({
+                deleted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
+    } catch (error) {
+        // Fall through to return unchanged value
+    }
+
+    return existingInvitation;
+}
+
 export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncResponse> {
     const results: SyncResponse = {};
 
@@ -720,6 +852,32 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
                 if (result) {
                     if (!results.ticket_comments) results.ticket_comments = [];
                     results.ticket_comments.push(result);
+                }
+                break;
+            }
+
+            // Organization Invitation operations
+            case 'create_organization_invitation': {
+                const result = await createOrganizationInvitation(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.organization_invitations) results.organization_invitations = [];
+                    results.organization_invitations.push(result);
+                }
+                break;
+            }
+            case 'update_organization_invitation': {
+                const result = await updateOrganizationInvitation(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.organization_invitations) results.organization_invitations = [];
+                    results.organization_invitations.push(result);
+                }
+                break;
+            }
+            case 'delete_organization_invitation': {
+                const result = await deleteOrganizationInvitation(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.organization_invitations) results.organization_invitations = [];
+                    results.organization_invitations.push(result);
                 }
                 break;
             }
