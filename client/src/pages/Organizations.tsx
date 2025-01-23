@@ -5,16 +5,19 @@ import { CreateOrganizationDialog } from '../components/CreateOrganizationDialog
 import { Link } from 'react-router-dom';
 import { db } from '../lib/db';
 import type { Organization, OrganizationInvitation } from '../lib/db';
-import { createOrganization, createProfileOrganizationMember, deleteOrganizationInvitation } from '../lib/mutations';
+import { createOrganization, deleteOrganizationInvitation } from '../lib/mutations';
 import { useState } from 'react';
 import OrganizationMembers from '../components/OrganizationMembers';
 import { useAuth } from '../lib/auth';
+import { trpc } from '../lib/trpc';
+
 
 export default function Organizations() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { user } = useAuth();
+    const acceptInvitationMutation = trpc.acceptInvitation.useMutation();
 
     const organizations = useLiveQuery(
         async () => {
@@ -58,16 +61,49 @@ export default function Organizations() {
             setError(null);
             if (!user?.id) throw new Error('Not logged in');
 
-            // Create organization membership
-            await createProfileOrganizationMember({
-                id: crypto.randomUUID(),
-                profile_id: user.id,
-                organization_id: invitation.organization_id,
-                role: invitation.role,
+            const response = await acceptInvitationMutation.mutateAsync({
+                invitation_id: invitation.id,
             });
 
-            // Delete the invitation
-            await deleteOrganizationInvitation(invitation.id);
+            // Store all the returned data in the local database
+            await db.transaction('rw', [
+                db.organizations,
+                db.profiles,
+                db.profileOrganizationMembers,
+                db.tickets,
+                db.ticketComments,
+                db.organizationInvitations
+            ], async () => {
+                // Store organization
+                if (response.organization) {
+                    await db.organizations.put(response.organization);
+                }
+
+                // Store profile and member data
+                if ('member' in response && response.member && response.profile) {
+                    // Customer response
+                    await db.profiles.put(response.profile);
+                    await db.profileOrganizationMembers.put(response.member);
+                } else if ('members' in response && response.members && response.profiles) {
+                    // Worker/admin response
+                    await db.profiles.bulkPut(response.profiles);
+                    await db.profileOrganizationMembers.bulkPut(response.members);
+                    if (response.invitations) {
+                        await db.organizationInvitations.bulkPut(response.invitations);
+                    }
+                }
+
+                // Store tickets and comments
+                if (response.tickets) {
+                    await db.tickets.bulkPut(response.tickets);
+                }
+                if (response.comments) {
+                    await db.ticketComments.bulkPut(response.comments);
+                }
+
+                // Delete the accepted invitation
+                await db.organizationInvitations.delete(invitation.id);
+            });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to accept invitation');
         }

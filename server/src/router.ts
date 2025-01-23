@@ -6,6 +6,7 @@ import { createProfile } from './handlers/profile';
 import { getProfile } from './handlers/profile';
 import { SyncInputSchema } from './handlers/sync/schema';
 import { sync } from './handlers/sync';
+import { acceptInvitation, acceptInvitationSchema } from './handlers/invitations';
 
 export const appRouter = router({
     hello: procedure
@@ -53,6 +54,7 @@ export const appRouter = router({
                 userId: ctx.user.id
             });
         }),
+
     sync: authedProcedure
         .input(SyncInputSchema)
         .mutation(({ input, ctx }) => {
@@ -60,6 +62,12 @@ export const appRouter = router({
                 data: input,
                 ctx
             });
+        }),
+
+    acceptInvitation: authedProcedure
+        .input(acceptInvitationSchema)
+        .mutation(({ input, ctx }) => {
+            return acceptInvitation(input, ctx.user.id);
         }),
 });
 

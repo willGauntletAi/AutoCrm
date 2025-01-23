@@ -336,16 +336,6 @@ export async function deleteOrganizationInvitation(id: string): Promise<void> {
     await syncToServer();
 }
 
-export async function acceptInvitation(invitationId: string): Promise<void> {
-    await db.transaction('rw', [db.mutations], async () => {
-        await queueMutation({
-            operation: 'accept_invitation',
-            data: { invitation_id: invitationId },
-        });
-    });
-    await syncToServer();
-}
-
 // Get all unsynced mutations
 export async function getUnsyncedMutations(): Promise<Operation[]> {
     const mutations = await db.mutations

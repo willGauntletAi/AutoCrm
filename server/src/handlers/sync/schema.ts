@@ -129,12 +129,6 @@ export const SyncOperationSchema = z.discriminatedUnion('operation', [
         operation: z.literal('delete_organization_invitation'),
         data: z.object({ id: z.string().uuid() })
     }),
-    z.object({
-        operation: z.literal('accept_invitation'),
-        data: z.object({
-            invitation_id: z.string().uuid(),
-        })
-    }),
 ]);
 
 export const SyncInputSchema = z.array(SyncOperationSchema);
