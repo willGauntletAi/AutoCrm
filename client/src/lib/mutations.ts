@@ -304,12 +304,12 @@ export async function applyMutation(operation: Operation): Promise<void> {
     switch (operation.operation) {
         case 'create_profile':
         case 'update_profile':
-            await db.profiles.put(operation.data);
+            await db.profiles.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
             break;
 
         case 'create_organization':
         case 'update_organization':
-            await db.organizations.put(operation.data);
+            await db.organizations.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
             break;
 
         case 'delete_organization':
@@ -320,7 +320,7 @@ export async function applyMutation(operation: Operation): Promise<void> {
 
         case 'create_profile_organization_member':
         case 'update_profile_organization_member':
-            await db.profileOrganizationMembers.put(operation.data);
+            await db.profileOrganizationMembers.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
             break;
 
         case 'delete_profile_organization_member':
@@ -331,7 +331,7 @@ export async function applyMutation(operation: Operation): Promise<void> {
 
         case 'create_ticket':
         case 'update_ticket':
-            await db.tickets.put(operation.data);
+            await db.tickets.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
             break;
 
         case 'delete_ticket':
@@ -341,7 +341,7 @@ export async function applyMutation(operation: Operation): Promise<void> {
             break;
 
         case 'create_ticket_comment':
-            await db.ticketComments.put(operation.data);
+            await db.ticketComments.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
             break;
 
         case 'delete_ticket_comment':
@@ -366,10 +366,37 @@ export async function syncToServer(): Promise<void> {
         }
 
         // Send mutations to server
-        await client.sync.mutate(unsyncedMutations.map(m => m.operation));
+        const result = await client.sync.mutate(unsyncedMutations.map(m => m.operation));
 
-        // Mark mutations as synced
-        await markMutationsSynced(unsyncedMutations.map(m => m.id!));
+        // Update local records with server timestamps
+        await db.transaction('rw', [
+            db.profiles,
+            db.organizations,
+            db.profileOrganizationMembers,
+            db.tickets,
+            db.ticketComments,
+            db.mutations
+        ], async () => {
+            // Update each type of record with server response
+            if (result.profiles?.length) {
+                await db.profiles.bulkPut(result.profiles);
+            }
+            if (result.organizations?.length) {
+                await db.organizations.bulkPut(result.organizations);
+            }
+            if (result.profile_organization_members?.length) {
+                await db.profileOrganizationMembers.bulkPut(result.profile_organization_members);
+            }
+            if (result.tickets?.length) {
+                await db.tickets.bulkPut(result.tickets);
+            }
+            if (result.ticket_comments?.length) {
+                await db.ticketComments.bulkPut(result.ticket_comments);
+            }
+
+            // Mark mutations as synced
+            await markMutationsSynced(unsyncedMutations.map(m => m.id!));
+        });
 
     } catch (error) {
         console.error('Error syncing to server:', error);
