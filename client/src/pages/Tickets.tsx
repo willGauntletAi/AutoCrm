@@ -5,7 +5,7 @@ import { useParams, Link } from 'react-router-dom'
 import { Badge } from '../components/ui/badge'
 import { CreateTicketDialog } from '../components/CreateTicketDialog'
 import { db } from '../lib/db'
-import { create } from '../lib/mutations'
+import { createTicket } from '../lib/mutations'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '@/lib/auth'
 
@@ -35,7 +35,8 @@ export default function Tickets() {
         try {
             setIsCreatingTicket(true)
             setError(null)
-            await create('tickets', {
+            await createTicket({
+                id: crypto.randomUUID(),
                 title: data.title,
                 description: data.description,
                 priority: data.priority,
@@ -43,7 +44,8 @@ export default function Tickets() {
                 status: 'open',
                 created_by: user.id,
                 assigned_to: null,
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             })
             setIsDialogOpen(false)
         } catch (err) {

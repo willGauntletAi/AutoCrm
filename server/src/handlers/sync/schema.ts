@@ -8,6 +8,7 @@ export const ProfileSchema = z.object({
 });
 
 export const OrganizationSchema = z.object({
+    id: z.string().uuid(),
     name: z.string(),
 });
 
@@ -16,6 +17,7 @@ export const OrganizationUpdateSchema = OrganizationSchema.extend({
 });
 
 export const ProfileOrganizationMemberSchema = z.object({
+    id: z.string().uuid(),
     profile_id: z.string().uuid(),
     organization_id: z.string().uuid(),
     role: z.string().nullable(),
@@ -25,7 +27,8 @@ export const ProfileOrganizationMemberUpdateSchema = ProfileOrganizationMemberSc
     id: z.string(),
 });
 
-export const TicketCreateSchema = z.object({
+export const TicketSchema = z.object({
+    id: z.string().uuid(),
     title: z.string(),
     description: z.string().nullable(),
     status: z.string(),
@@ -35,50 +38,78 @@ export const TicketCreateSchema = z.object({
     organization_id: z.string().uuid(),
 });
 
-export const TicketUpdateSchema = z.object({
-    id: z.string(),
-    title: z.string().optional(),
-    description: z.string().nullable().optional(),
-    status: z.string().optional(),
-    priority: z.string().optional(),
-    assigned_to: z.string().uuid().nullable().optional(),
-    organization_id: z.string().uuid().optional(),
-});
-
-export const TicketCommentCreateSchema = z.object({
-    ticket_id: z.string(),
+export const TicketCommentSchema = z.object({
+    id: z.string().uuid(),
+    ticket_id: z.string().uuid(),
     user_id: z.string().uuid(),
     comment: z.string(),
 });
 
-export const TicketCommentUpdateSchema = TicketCommentCreateSchema.extend({
-    id: z.string(),
-});
+// Define the sync operation schema using a discriminated union
+export const SyncOperationSchema = z.discriminatedUnion('operation', [
+    // Profile operations
+    z.object({
+        operation: z.literal('create_profile'),
+        data: ProfileSchema
+    }),
+    z.object({
+        operation: z.literal('update_profile'),
+        data: ProfileSchema
+    }),
 
-export const SyncInputSchema = z.object({
-    profiles: z.object({
-        creates: z.array(ProfileSchema).optional(),
-        updates: z.array(ProfileSchema.extend({ id: z.string().uuid() })).optional(),
-    }).optional(),
-    organizations: z.object({
-        creates: z.array(OrganizationSchema).optional(),
-        updates: z.array(OrganizationUpdateSchema).optional(),
-        deletes: z.array(z.string().uuid()).optional(),
-    }).optional(),
-    profile_organization_members: z.object({
-        creates: z.array(ProfileOrganizationMemberSchema).optional(),
-        updates: z.array(ProfileOrganizationMemberUpdateSchema).optional(),
-        deletes: z.array(z.string()).optional(),
-    }).optional(),
-    tickets: z.object({
-        creates: z.array(TicketCreateSchema).optional(),
-        updates: z.array(TicketUpdateSchema).optional(),
-        deletes: z.array(z.string()).optional(),
-    }).optional(),
-    ticket_comments: z.object({
-        creates: z.array(TicketCommentCreateSchema).optional(),
-        deletes: z.array(z.string()).optional(),
-    }).optional(),
-});
+    // Organization operations
+    z.object({
+        operation: z.literal('create_organization'),
+        data: OrganizationSchema
+    }),
+    z.object({
+        operation: z.literal('update_organization'),
+        data: OrganizationSchema
+    }),
+    z.object({
+        operation: z.literal('delete_organization'),
+        data: z.object({ id: z.string().uuid() })
+    }),
+
+    // Profile Organization Member operations
+    z.object({
+        operation: z.literal('create_profile_organization_member'),
+        data: ProfileOrganizationMemberSchema
+    }),
+    z.object({
+        operation: z.literal('update_profile_organization_member'),
+        data: ProfileOrganizationMemberSchema
+    }),
+    z.object({
+        operation: z.literal('delete_profile_organization_member'),
+        data: z.object({ id: z.string().uuid() })
+    }),
+
+    // Ticket operations
+    z.object({
+        operation: z.literal('create_ticket'),
+        data: TicketSchema
+    }),
+    z.object({
+        operation: z.literal('update_ticket'),
+        data: TicketSchema
+    }),
+    z.object({
+        operation: z.literal('delete_ticket'),
+        data: z.object({ id: z.string().uuid() })
+    }),
+
+    // Ticket Comment operations
+    z.object({
+        operation: z.literal('create_ticket_comment'),
+        data: TicketCommentSchema
+    }),
+    z.object({
+        operation: z.literal('delete_ticket_comment'),
+        data: z.object({ id: z.string().uuid() })
+    })
+]);
+
+export const SyncInputSchema = z.array(SyncOperationSchema);
 
 export type SyncInput = z.infer<typeof SyncInputSchema>; 

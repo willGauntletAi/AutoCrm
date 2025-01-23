@@ -11,31 +11,32 @@ import {
 } from "./ui/dialog"
 
 interface CreateOrganizationDialogProps {
-    trigger: React.ReactNode;
-    onCreateOrganization: (name: string) => void;
+    trigger?: React.ReactNode;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSubmit: (name: string) => void;
     isLoading?: boolean;
 }
 
 export function CreateOrganizationDialog({
     trigger,
-    onCreateOrganization,
+    open,
+    onOpenChange,
+    onSubmit,
     isLoading = false
 }: CreateOrganizationDialogProps) {
-    const [isOpen, setIsOpen] = useState(false)
     const [orgName, setOrgName] = useState('')
 
-    const handleCreate = () => {
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
         if (!orgName) return
-        onCreateOrganization(orgName)
+        onSubmit(orgName)
         setOrgName('')
-        setIsOpen(false)
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                {trigger}
-            </DialogTrigger>
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
             <DialogContent className="bg-white">
                 <DialogHeader>
                     <DialogTitle className="text-gray-900">Create New Organization</DialogTitle>
@@ -43,7 +44,7 @@ export function CreateOrganizationDialog({
                         Enter a name for your new organization. You'll be added as an admin automatically.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <form onSubmit={handleSubmit} className="grid gap-4 py-4">
                     <div className="flex flex-col gap-2">
                         <Input
                             id="name"
@@ -54,12 +55,12 @@ export function CreateOrganizationDialog({
                         />
                     </div>
                     <Button
-                        onClick={handleCreate}
+                        type="submit"
                         disabled={isLoading}
                     >
                         {isLoading ? 'Creating...' : 'Create'}
                     </Button>
-                </div>
+                </form>
             </DialogContent>
         </Dialog>
     )

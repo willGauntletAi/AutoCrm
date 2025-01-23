@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { router, procedure } from './trpc';
 import { createOrganization, getOrganizations } from './handlers/organization';
-import { createTicket, getTickets, getTicket, getTicketComments, createTicketComment } from './handlers/ticket';
-import { getProfile, createProfile } from './handlers/profile';
 import { authedProcedure } from './middleware/auth';
-import { sync } from './handlers/sync';
+import { createProfile } from './handlers/profile';
+import { getProfile } from './handlers/profile';
 import { SyncInputSchema } from './handlers/sync/schema';
+import { sync } from './handlers/sync';
 
 export const appRouter = router({
     hello: procedure
@@ -53,67 +53,6 @@ export const appRouter = router({
                 userId: ctx.user.id
             });
         }),
-
-    createTicket: authedProcedure
-        .input(z.object({
-            title: z.string().min(1).max(255),
-            description: z.string().optional(),
-            priority: z.enum(['low', 'medium', 'high']),
-            organization_id: z.string().uuid()
-        }))
-        .mutation(({ input, ctx }) => {
-            return createTicket({
-                ...input,
-                ctx
-            });
-        }),
-
-    getTickets: authedProcedure
-        .input(z.object({
-            organization_id: z.string().uuid()
-        }))
-        .query(({ input, ctx }) => {
-            return getTickets({
-                organization_id: input.organization_id,
-                ctx
-            });
-        }),
-
-    getTicket: authedProcedure
-        .input(z.object({
-            ticket_id: z.number()
-        }))
-        .query(({ input, ctx }) => {
-            return getTicket({
-                ticket_id: input.ticket_id,
-                ctx
-            });
-        }),
-
-    getTicketComments: authedProcedure
-        .input(z.object({
-            ticket_id: z.number()
-        }))
-        .query(({ input, ctx }) => {
-            return getTicketComments({
-                ticket_id: input.ticket_id,
-                ctx
-            });
-        }),
-
-    createTicketComment: authedProcedure
-        .input(z.object({
-            ticket_id: z.number(),
-            comment: z.string().min(1)
-        }))
-        .mutation(({ input, ctx }) => {
-            return createTicketComment({
-                ticket_id: input.ticket_id,
-                comment: input.comment,
-                ctx
-            });
-        }),
-
     sync: authedProcedure
         .input(SyncInputSchema)
         .mutation(({ input, ctx }) => {

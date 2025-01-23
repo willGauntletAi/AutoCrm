@@ -5,10 +5,11 @@ import { CreateOrganizationDialog } from '../components/CreateOrganizationDialog
 import { Link } from 'react-router-dom';
 import { db } from '../lib/db';
 import type { Organization } from '../lib/db';
-import { create } from '../lib/mutations';
+import { createOrganization } from '../lib/mutations';
 import { useState } from 'react';
 
 export default function Organizations() {
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -26,9 +27,13 @@ export default function Organizations() {
         try {
             setIsCreating(true);
             setError(null);
-            await create('organizations', {
+            await createOrganization({
+                id: crypto.randomUUID(),
                 name,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
             });
+            setIsDialogOpen(false);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create organization');
         } finally {
@@ -51,7 +56,9 @@ export default function Organizations() {
                     <h1 className="text-4xl font-bold">Organizations</h1>
                     <CreateOrganizationDialog
                         trigger={<Button>Create Organization</Button>}
-                        onCreateOrganization={handleCreateOrganization}
+                        open={isDialogOpen}
+                        onOpenChange={setIsDialogOpen}
+                        onSubmit={handleCreateOrganization}
                         isLoading={isCreating}
                     />
                 </div>
@@ -83,12 +90,10 @@ export default function Organizations() {
                         <div className="text-center p-8 bg-gray-50 rounded-lg">
                             <p className="text-gray-600">You don't have any organizations yet.</p>
                             <CreateOrganizationDialog
-                                trigger={
-                                    <Button variant="link" className="mt-2">
-                                        Create your first organization
-                                    </Button>
-                                }
-                                onCreateOrganization={handleCreateOrganization}
+                                trigger={<Button className="mt-4">Create Organization</Button>}
+                                open={isDialogOpen}
+                                onOpenChange={setIsDialogOpen}
+                                onSubmit={handleCreateOrganization}
                                 isLoading={isCreating}
                             />
                         </div>

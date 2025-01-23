@@ -37,7 +37,7 @@ export type Database = {
         Row: {
           created_at: string | null
           deleted_at: string | null
-          id: number
+          id: string
           organization_id: string
           profile_id: string
           role: string | null
@@ -46,7 +46,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           deleted_at?: string | null
-          id?: number
+          id?: string
           organization_id: string
           profile_id: string
           role?: string | null
@@ -55,7 +55,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           deleted_at?: string | null
-          id?: number
+          id?: string
           organization_id?: string
           profile_id?: string
           role?: string | null
@@ -110,8 +110,8 @@ export type Database = {
           comment: string
           created_at: string | null
           deleted_at: string | null
-          id: number
-          ticket_id: number
+          id: string
+          ticket_id: string
           updated_at: string | null
           user_id: string
         }
@@ -119,8 +119,8 @@ export type Database = {
           comment: string
           created_at?: string | null
           deleted_at?: string | null
-          id?: number
-          ticket_id: number
+          id?: string
+          ticket_id: string
           updated_at?: string | null
           user_id: string
         }
@@ -128,8 +128,8 @@ export type Database = {
           comment?: string
           created_at?: string | null
           deleted_at?: string | null
-          id?: number
-          ticket_id?: number
+          id?: string
+          ticket_id?: string
           updated_at?: string | null
           user_id?: string
         }
@@ -157,7 +157,7 @@ export type Database = {
           created_by: string
           deleted_at: string | null
           description: string | null
-          id: number
+          id: string
           organization_id: string
           priority: string
           status: string
@@ -170,7 +170,7 @@ export type Database = {
           created_by: string
           deleted_at?: string | null
           description?: string | null
-          id?: number
+          id?: string
           organization_id: string
           priority?: string
           status?: string
@@ -183,7 +183,7 @@ export type Database = {
           created_by?: string
           deleted_at?: string | null
           description?: string | null
-          id?: number
+          id?: string
           organization_id?: string
           priority?: string
           status?: string

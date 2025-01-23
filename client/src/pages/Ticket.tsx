@@ -5,7 +5,7 @@ import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Textarea } from '../components/ui/textarea'
 import { db } from '../lib/db'
-import { create } from '../lib/mutations'
+import { createTicketComment } from '../lib/mutations'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '../lib/auth'
 
@@ -64,11 +64,13 @@ export default function Ticket() {
         try {
             setIsCreatingComment(true)
             setError(null)
-            await create('ticket_comments', {
+            await createTicketComment({
+                id: crypto.randomUUID(),
                 ticket_id: ticket_id!,
                 comment: newComment.trim(),
                 user_id: user.id,
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             })
             setNewComment('')
         } catch (err) {
