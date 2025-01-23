@@ -13,6 +13,7 @@ import { supabase } from './lib/supabase'
 import Tickets from './pages/Tickets'
 import Ticket from './pages/Ticket'
 import OrganizationLayout from './components/OrganizationLayout'
+import EmployeesPage from './pages/Employees'
 
 function App() {
   const [queryClient] = useState(() => new QueryClient())
@@ -78,7 +79,7 @@ function App() {
               <Route path="tickets" element={<Tickets />} />
               <Route path="tickets/:ticket_id" element={<Ticket />} />
               <Route path="customers" element={<div>Customers (Coming Soon)</div>} />
-              <Route path="employees" element={<div>Employees (Coming Soon)</div>} />
+              <Route path="employees" element={<EmployeesPage />} />
               <Route path="profile" element={<Profile />} />
             </Route>
             <Route path="*" element={<Navigate to="/" />} />
