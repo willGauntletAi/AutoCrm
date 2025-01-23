@@ -1,14 +1,8 @@
 import { useState } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogTrigger,
-} from "./ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { DialogTrigger } from './ui/dialog';
 
 interface CreateOrganizationDialogProps {
     trigger?: React.ReactNode;

@@ -1,8 +1,14 @@
 import { Link, Outlet, useParams } from 'react-router-dom'
 import { Button } from './ui/button'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet'
 import { Menu } from 'lucide-react'
 import { cn } from '../lib/utils'
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from './ui/sheet'
 
 const navItems = [
     { name: 'Dashboard', path: '' },
