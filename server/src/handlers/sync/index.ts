@@ -75,22 +75,28 @@ async function updateProfile(data: z.infer<typeof SyncInputSchema>[number] & { o
     }
 
     try {
-        return await db.updateTable('profiles')
+        const updated = await db.updateTable('profiles')
             .set({
                 ...data.data,
                 updated_at: new Date().toISOString(),
             })
             .where('id', '=', data.data.id)
             .returningAll()
-            .executeTakeFirstOrThrow();
-    } catch (error) {
-        // On error, return the unchanged value
-        const existing = await db.selectFrom('profiles')
-            .selectAll()
-            .where('id', '=', data.data.id)
             .executeTakeFirst();
-        return existing ?? null;
+
+        if (updated) {
+            return updated;
+        }
+    } catch (error) {
+        // Fall through to return unchanged value
     }
+
+    // On error or if record not found, return the unchanged value
+    const existing = await db.selectFrom('profiles')
+        .selectAll()
+        .where('id', '=', data.data.id)
+        .executeTakeFirst();
+    return existing ?? null;
 }
 
 // Organization operations
@@ -152,7 +158,7 @@ async function updateOrganization(data: z.infer<typeof SyncInputSchema>[number] 
     }
 
     try {
-        return await db.updateTable('organizations')
+        const updated = await db.updateTable('organizations')
             .set({
                 id: data.data.id,
                 name: data.data.name,
@@ -160,10 +166,16 @@ async function updateOrganization(data: z.infer<typeof SyncInputSchema>[number] 
             })
             .where('id', '=', data.data.id)
             .returningAll()
-            .executeTakeFirstOrThrow();
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
     } catch (error) {
-        return existingOrg;
+        // Fall through to return unchanged value
     }
+
+    return existingOrg;
 }
 
 async function deleteOrganization(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_organization' }, memberships: Record<string, string>): Promise<TableRow<'organizations'> | null> {
@@ -189,17 +201,23 @@ async function deleteOrganization(data: z.infer<typeof SyncInputSchema>[number] 
     }
 
     try {
-        return await db.updateTable('organizations')
+        const updated = await db.updateTable('organizations')
             .set({
                 deleted_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             })
             .where('id', '=', data.data.id)
             .returningAll()
-            .executeTakeFirstOrThrow();
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
     } catch (error) {
-        return existingOrg;
+        // Fall through to return unchanged value
     }
+
+    return existingOrg;
 }
 
 // Profile Organization Member operations
@@ -282,7 +300,7 @@ async function updateProfileOrganizationMember(data: z.infer<typeof SyncInputSch
     }
 
     try {
-        return await db.updateTable('profile_organization_members')
+        const updated = await db.updateTable('profile_organization_members')
             .set({
                 ...data.data,
                 // Preserve the original organization_id and profile_id
@@ -293,10 +311,16 @@ async function updateProfileOrganizationMember(data: z.infer<typeof SyncInputSch
             })
             .where('id', '=', data.data.id)
             .returningAll()
-            .executeTakeFirstOrThrow();
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
     } catch (error) {
-        return existingMember;
+        // Fall through to return unchanged value
     }
+
+    return existingMember;
 }
 
 async function deleteProfileOrganizationMember(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_profile_organization_member' }, memberships: Record<string, string>): Promise<TableRow<'profile_organization_members'> | null> {
@@ -322,17 +346,23 @@ async function deleteProfileOrganizationMember(data: z.infer<typeof SyncInputSch
     }
 
     try {
-        return await db.updateTable('profile_organization_members')
+        const updated = await db.updateTable('profile_organization_members')
             .set({
                 deleted_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             })
             .where('id', '=', data.data.id)
             .returningAll()
-            .executeTakeFirstOrThrow();
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
     } catch (error) {
-        return existingMember;
+        // Fall through to return unchanged value
     }
+
+    return existingMember;
 }
 
 // Ticket operations
@@ -412,7 +442,7 @@ async function updateTicket(data: z.infer<typeof SyncInputSchema>[number] & { op
     }
 
     try {
-        return await db.updateTable('tickets')
+        const updated = await db.updateTable('tickets')
             .set({
                 ...data.data,
                 // Preserve the organization_id and created_by
@@ -422,10 +452,16 @@ async function updateTicket(data: z.infer<typeof SyncInputSchema>[number] & { op
             })
             .where('id', '=', data.data.id)
             .returningAll()
-            .executeTakeFirstOrThrow();
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
     } catch (error) {
-        return existingTicket;
+        // Fall through to return unchanged value
     }
+
+    return existingTicket;
 }
 
 async function deleteTicket(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_ticket' }, memberships: Record<string, string>, userId: string): Promise<TableRow<'tickets'> | null> {
@@ -452,17 +488,23 @@ async function deleteTicket(data: z.infer<typeof SyncInputSchema>[number] & { op
     }
 
     try {
-        return await db.updateTable('tickets')
+        const updated = await db.updateTable('tickets')
             .set({
                 deleted_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             })
             .where('id', '=', data.data.id)
             .returningAll()
-            .executeTakeFirstOrThrow();
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
     } catch (error) {
-        return existingTicket;
+        // Fall through to return unchanged value
     }
+
+    return existingTicket;
 }
 
 // Ticket Comment operations
@@ -544,17 +586,23 @@ async function deleteTicketComment(data: z.infer<typeof SyncInputSchema>[number]
     }
 
     try {
-        return await db.updateTable('ticket_comments')
+        const updated = await db.updateTable('ticket_comments')
             .set({
                 deleted_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             })
             .where('id', '=', data.data.id)
             .returningAll()
-            .executeTakeFirstOrThrow();
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
     } catch (error) {
-        return existingComment;
+        // Fall through to return unchanged value
     }
+
+    return existingComment;
 }
 
 export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncResponse> {
