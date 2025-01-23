@@ -5,6 +5,7 @@ import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketCo
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export const CURRENT_USER_KEY = 'currentUserId';
+export const IS_INITIALIZED_KEY = 'isInitialized';
 
 async function getCurrentUserId(): Promise<string | null> {
     const record = await db.system.get(CURRENT_USER_KEY);
@@ -16,6 +17,14 @@ async function setCurrentUserId(userId: string | null): Promise<void> {
         await db.system.put({ key: CURRENT_USER_KEY, value: userId });
     } else {
         await db.system.delete(CURRENT_USER_KEY);
+    }
+}
+
+async function setInitialized(initialized: boolean): Promise<void> {
+    if (initialized) {
+        await db.system.put({ key: IS_INITIALIZED_KEY, value: 'true' });
+    } else {
+        await db.system.delete(IS_INITIALIZED_KEY);
     }
 }
 
@@ -51,6 +60,7 @@ async function clearDatabase() {
 
 export async function syncFromServer() {
     try {
+        await setInitialized(false);
         // Get latest timestamps from local DB
         const [
             profilesTimestamp,
@@ -134,6 +144,7 @@ export async function syncFromServer() {
             }
         });
 
+        await setInitialized(true);
     } catch (error) {
         console.error('Error syncing from server:', error);
         throw error;
@@ -321,11 +332,13 @@ supabase.auth.onAuthStateChange(async (event, session) => {
             await clearDatabase();
         }
         await setCurrentUserId(newUserId);
+        await setInitialized(false);
         void syncFromServer();
         setupRealtimeSync();
     } else if (event === 'SIGNED_OUT') {
-        // Clean up realtime subscription only
+        // Clean up realtime subscription and initialization state
         realtimeChannel?.unsubscribe();
         realtimeChannel = null;
+        await setInitialized(false);
     }
 }); 

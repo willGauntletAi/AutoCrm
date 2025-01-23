@@ -4,22 +4,29 @@ import { supabase } from '../lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { db } from '../lib/db'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { IS_INITIALIZED_KEY } from '../lib/sync-from-server'
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-    const [loading, setLoading] = useState(true)
+    const [authLoading, setAuthLoading] = useState(true)
     const [user, setUser] = useState<User | null>(null)
     const location = useLocation()
+
+    const isInitialized = useLiveQuery(
+        async () => {
+            const record = await db.system.get(IS_INITIALIZED_KEY)
+            return record?.value === 'true'
+        }
+    )
 
     const profile = useLiveQuery(
         async () => {
             console.log('user', user)
-            if (!user) return null
+            if (!user) return undefined
             const result = await db.profiles.where('id').equals(user.id).first()
             console.log('result', result)
             return result ?? null
         },
-        [user],
-        null
+        [user]
     )
 
     useEffect(() => {
@@ -28,7 +35,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
             const { data: { session } } = await supabase.auth.getSession()
             const currentUser = session?.user ?? null
             setUser(currentUser)
-            setLoading(false)
+            setAuthLoading(false)
         }
 
         loadUser()
@@ -44,7 +51,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
         }
     }, [])
 
-    if (loading) {
+    if (authLoading || profile === undefined || isInitialized === undefined || (user && !isInitialized)) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -56,8 +63,8 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
         return <Navigate to="/login" state={{ from: location }} replace />
     }
 
-    // Redirect to profile page if user has no profile
-    if (!profile && location.pathname !== '/create-profile') {
+    // Only redirect to profile page if we're sure the profile doesn't exist and we're not already on the create-profile page
+    if (profile === null && location.pathname !== '/create-profile') {
         return <Navigate to="/create-profile" state={{ from: location }} replace />
     }
 
