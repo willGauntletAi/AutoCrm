@@ -69,8 +69,6 @@ export default function Ticket() {
                 ticket_id: ticket_id!,
                 comment: newComment.trim(),
                 user_id: user.id,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
             })
             setNewComment('')
         } catch (err) {

@@ -8,7 +8,7 @@ export const ProfileSchema = z.object({
     avatar_url: z.string().nullable(),
     created_at: z.string().optional(),
     updated_at: z.string().optional(),
-    deleted_at: z.string().optional(),
+    deleted_at: z.string().nullable(),
 });
 
 export const OrganizationSchema = z.object({
@@ -16,7 +16,7 @@ export const OrganizationSchema = z.object({
     name: z.string(),
     created_at: z.string().optional(),
     updated_at: z.string().optional(),
-    deleted_at: z.string().optional(),
+    deleted_at: z.string().nullable(),
 });
 
 export const ProfileOrganizationMemberSchema = z.object({
@@ -26,7 +26,7 @@ export const ProfileOrganizationMemberSchema = z.object({
     role: z.string().nullable(),
     created_at: z.string().optional(),
     updated_at: z.string().optional(),
-    deleted_at: z.string().optional(),
+    deleted_at: z.string().nullable(),
 });
 
 export const TicketSchema = z.object({
@@ -40,7 +40,7 @@ export const TicketSchema = z.object({
     organization_id: z.string().uuid(),
     created_at: z.string().optional(),
     updated_at: z.string().optional(),
-    deleted_at: z.string().optional(),
+    deleted_at: z.string().nullable(),
 });
 
 export const TicketCommentSchema = z.object({
@@ -50,17 +50,12 @@ export const TicketCommentSchema = z.object({
     comment: z.string(),
     created_at: z.string().optional(),
     updated_at: z.string().optional(),
-    deleted_at: z.string().optional(),
+    deleted_at: z.string().nullable(),
 });
 
 export const SystemMetadataSchema = z.object({
     key: z.string(),
-    value: z.union([
-        z.object({
-            id: z.string().uuid(),
-        }),
-        z.string()
-    ]),
+    value: z.string(),
 });
 
 // Define mutation types that match the sync operation schema
@@ -136,12 +131,12 @@ export const MutationSchema = z.object({
 });
 
 // Generate types from schemas
-export type SystemMetadata = z.infer<typeof SystemMetadataSchema>;
 export type Profile = z.infer<typeof ProfileSchema>;
 export type Organization = z.infer<typeof OrganizationSchema>;
 export type ProfileOrganizationMember = z.infer<typeof ProfileOrganizationMemberSchema>;
 export type Ticket = z.infer<typeof TicketSchema>;
 export type TicketComment = z.infer<typeof TicketCommentSchema>;
+export type SystemMetadata = z.infer<typeof SystemMetadataSchema>;
 export type Mutation = z.infer<typeof MutationSchema>;
 
 // Define database class
@@ -169,65 +164,51 @@ export class AutoCRMDatabase extends Dexie {
         // Add hooks to validate data
         this.profiles.hook('creating', (_, obj) => {
             ProfileSchema.parse(obj);
-            return obj;
         });
         this.profiles.hook('updating', (mods) => {
             ProfileSchema.partial().parse(mods);
-            return mods;
         });
 
         this.organizations.hook('creating', (_, obj) => {
             OrganizationSchema.parse(obj);
-            return obj;
         });
         this.organizations.hook('updating', (mods) => {
             OrganizationSchema.partial().parse(mods);
-            return mods;
         });
 
         this.profileOrganizationMembers.hook('creating', (_, obj) => {
             ProfileOrganizationMemberSchema.parse(obj);
-            return obj;
         });
         this.profileOrganizationMembers.hook('updating', (mods) => {
             ProfileOrganizationMemberSchema.partial().parse(mods);
-            return mods;
         });
 
         this.tickets.hook('creating', (_, obj) => {
             TicketSchema.parse(obj);
-            return obj;
         });
         this.tickets.hook('updating', (mods) => {
             TicketSchema.partial().parse(mods);
-            return mods;
         });
 
         this.ticketComments.hook('creating', (_, obj) => {
             TicketCommentSchema.parse(obj);
-            return obj;
         });
         this.ticketComments.hook('updating', (mods) => {
             TicketCommentSchema.partial().parse(mods);
-            return mods;
         });
 
         this.system.hook('creating', (_, obj) => {
             SystemMetadataSchema.parse(obj);
-            return obj;
         });
         this.system.hook('updating', (mods) => {
             SystemMetadataSchema.partial().parse(mods);
-            return mods;
         });
 
         this.mutations.hook('creating', (_, obj) => {
             MutationSchema.parse(obj);
-            return obj;
         });
         this.mutations.hook('updating', (mods) => {
             MutationSchema.partial().parse(mods);
-            return mods;
         });
     }
 }

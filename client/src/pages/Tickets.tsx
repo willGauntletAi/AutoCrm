@@ -44,8 +44,6 @@ export default function Tickets() {
                 status: 'open',
                 created_by: user.id,
                 assigned_to: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
             })
             setIsDialogOpen(false)
         } catch (err) {

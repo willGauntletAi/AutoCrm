@@ -30,8 +30,6 @@ export default function Organizations() {
             await createOrganization({
                 id: crypto.randomUUID(),
                 name,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
             });
             setIsDialogOpen(false);
         } catch (err) {

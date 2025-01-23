@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment } from './db';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
-const CURRENT_USER_KEY = 'currentUserId';
+export const CURRENT_USER_KEY = 'currentUserId';
 
 async function getCurrentUserId(): Promise<string | null> {
     const record = await db.system.get(CURRENT_USER_KEY);

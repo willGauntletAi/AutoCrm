@@ -1,133 +1,19 @@
 import { db } from './db';
 import { z } from 'zod';
+import { client } from './trpc';
+import { CURRENT_USER_KEY } from './sync-from-server';
+import {
+    MutationOperationSchema,
+    type Profile,
+    type Organization,
+    type ProfileOrganizationMember,
+    type Ticket,
+    type TicketComment,
+    type Mutation
+} from './db';
 
-// Define the operation types
-const ProfileSchema = z.object({
-    id: z.string().uuid(),
-    full_name: z.string().nullable(),
-    avatar_url: z.string().nullable(),
-    created_at: z.string().optional(),
-    updated_at: z.string().optional(),
-    deleted_at: z.string().optional(),
-});
-
-const OrganizationSchema = z.object({
-    id: z.string().uuid(),
-    name: z.string(),
-    created_at: z.string().optional(),
-    updated_at: z.string().optional(),
-    deleted_at: z.string().optional(),
-});
-
-const ProfileOrganizationMemberSchema = z.object({
-    id: z.string().uuid(),
-    profile_id: z.string().uuid(),
-    organization_id: z.string().uuid(),
-    role: z.string().nullable(),
-    created_at: z.string().optional(),
-    updated_at: z.string().optional(),
-    deleted_at: z.string().optional(),
-});
-
-const TicketSchema = z.object({
-    id: z.string().uuid(),
-    title: z.string(),
-    description: z.string().nullable(),
-    priority: z.string(),
-    organization_id: z.string().uuid(),
-    status: z.string(),
-    created_by: z.string().uuid(),
-    assigned_to: z.string().uuid().nullable(),
-    created_at: z.string().optional(),
-    updated_at: z.string().optional(),
-    deleted_at: z.string().optional(),
-});
-
-const TicketCommentSchema = z.object({
-    id: z.string().uuid(),
-    ticket_id: z.string().uuid(),
-    user_id: z.string().uuid(),
-    comment: z.string(),
-    created_at: z.string().optional(),
-    updated_at: z.string().optional(),
-    deleted_at: z.string().optional(),
-});
-
-const DeleteSchema = z.object({
-    id: z.string().uuid(),
-});
-
-export const MutationOperationSchema = z.discriminatedUnion('operation', [
-    z.object({
-        operation: z.literal('create_profile'),
-        data: ProfileSchema,
-    }),
-    z.object({
-        operation: z.literal('update_profile'),
-        data: ProfileSchema,
-    }),
-    z.object({
-        operation: z.literal('create_organization'),
-        data: OrganizationSchema,
-    }),
-    z.object({
-        operation: z.literal('update_organization'),
-        data: OrganizationSchema,
-    }),
-    z.object({
-        operation: z.literal('delete_organization'),
-        data: DeleteSchema,
-    }),
-    z.object({
-        operation: z.literal('create_profile_organization_member'),
-        data: ProfileOrganizationMemberSchema,
-    }),
-    z.object({
-        operation: z.literal('update_profile_organization_member'),
-        data: ProfileOrganizationMemberSchema,
-    }),
-    z.object({
-        operation: z.literal('delete_profile_organization_member'),
-        data: DeleteSchema,
-    }),
-    z.object({
-        operation: z.literal('create_ticket'),
-        data: TicketSchema,
-    }),
-    z.object({
-        operation: z.literal('update_ticket'),
-        data: TicketSchema,
-    }),
-    z.object({
-        operation: z.literal('delete_ticket'),
-        data: DeleteSchema,
-    }),
-    z.object({
-        operation: z.literal('create_ticket_comment'),
-        data: TicketCommentSchema,
-    }),
-    z.object({
-        operation: z.literal('delete_ticket_comment'),
-        data: DeleteSchema,
-    }),
-]);
 
 export type Operation = z.infer<typeof MutationOperationSchema>;
-export type Profile = z.infer<typeof ProfileSchema>;
-export type Organization = z.infer<typeof OrganizationSchema>;
-export type ProfileOrganizationMember = z.infer<typeof ProfileOrganizationMemberSchema>;
-export type Ticket = z.infer<typeof TicketSchema>;
-export type TicketComment = z.infer<typeof TicketCommentSchema>;
-
-// Define the mutation schema
-const MutationSchema = z.object({
-    id: z.number().optional(),
-    operation: MutationOperationSchema,
-    timestamp: z.number(),
-    synced: z.number(),
-});
-
-export type Mutation = z.infer<typeof MutationSchema>;
 
 // Add a mutation to the queue
 export async function queueMutation(operation: Operation): Promise<void> {
@@ -140,114 +26,258 @@ export async function queueMutation(operation: Operation): Promise<void> {
 }
 
 // Helper functions for each operation type
-export async function createProfile(data: Profile): Promise<void> {
-    await queueMutation({
-        operation: 'create_profile',
-        data,
+export async function createProfile(data: Omit<Profile, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const profileData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.profiles], async () => {
+        await queueMutation({
+            operation: 'create_profile',
+            data: profileData,
+        });
+        await db.profiles.put(profileData);
     });
+    await syncToServer();
 }
 
-export async function updateProfile(data: Profile): Promise<void> {
-    await queueMutation({
-        operation: 'update_profile',
-        data,
+export async function updateProfile(id: string, data: Partial<Omit<Profile, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.profiles], async () => {
+        const profileData = {
+            id,
+            full_name: data.full_name || null,
+            avatar_url: data.avatar_url || null,
+            created_at: timestamp,
+            updated_at: timestamp,
+            deleted_at: null,
+        };
+        await queueMutation({
+            operation: 'update_profile',
+            data: profileData
+        });
+        await db.profiles.update(id, data);
     });
+    await syncToServer();
 }
 
-export async function createOrganization(data: Organization): Promise<void> {
-    // First create the organization
-    await queueMutation({
-        operation: 'create_organization',
-        data,
-    });
+export async function createOrganization(data: Omit<Organization, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const orgData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.organizations, db.profileOrganizationMembers, db.system], async () => {
+        await queueMutation({
+            operation: 'create_organization',
+            data: orgData,
+        });
+        await db.organizations.put(orgData);
 
-    // Then create the profile organization member record
-    const userRecord = await db.system.get('currentUser');
-    if (!userRecord || typeof userRecord.value === 'string' || !userRecord.value.id) {
-        throw new Error('No user found');
-    }
+        const userRecord = await db.system.get(CURRENT_USER_KEY);
+        if (!userRecord || typeof userRecord.value !== 'string') {
+            throw new Error('No user found');
+        }
 
-    await queueMutation({
-        operation: 'create_profile_organization_member',
-        data: {
+        const memberData = {
             id: crypto.randomUUID(),
-            profile_id: userRecord.value.id,
-            organization_id: data.id,
+            profile_id: userRecord.value,
+            organization_id: orgData.id,
             role: 'admin',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        },
+            created_at: timestamp,
+            updated_at: timestamp,
+            deleted_at: null,
+        };
+
+        await queueMutation({
+            operation: 'create_profile_organization_member',
+            data: memberData,
+        });
+        await db.profileOrganizationMembers.put(memberData);
     });
+    await syncToServer();
 }
 
-export async function updateOrganization(data: Organization): Promise<void> {
-    await queueMutation({
-        operation: 'update_organization',
-        data,
+export async function updateOrganization(id: string, data: Partial<Omit<Organization, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.organizations], async () => {
+        const existing = await db.organizations.get(id);
+        if (!existing) {
+            throw new Error(`Organization ${id} not found`);
+        }
+        const orgData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_organization',
+            data: orgData,
+        });
+        await db.organizations.update(id, orgData);
     });
+    await syncToServer();
 }
 
 export async function deleteOrganization(id: string): Promise<void> {
-    await queueMutation({
-        operation: 'delete_organization',
-        data: { id },
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.organizations], async () => {
+        await queueMutation({
+            operation: 'delete_organization',
+            data: { id },
+        });
+        await db.organizations.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
     });
+    await syncToServer();
 }
 
-export async function createProfileOrganizationMember(data: ProfileOrganizationMember): Promise<void> {
-    await queueMutation({
-        operation: 'create_profile_organization_member',
-        data,
+export async function createProfileOrganizationMember(data: Omit<ProfileOrganizationMember, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const memberData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.profileOrganizationMembers], async () => {
+        await queueMutation({
+            operation: 'create_profile_organization_member',
+            data: memberData,
+        });
+        await db.profileOrganizationMembers.put(memberData);
     });
+    await syncToServer();
 }
 
-export async function updateProfileOrganizationMember(data: ProfileOrganizationMember): Promise<void> {
-    await queueMutation({
-        operation: 'update_profile_organization_member',
-        data,
+export async function updateProfileOrganizationMember(id: string, data: Partial<Omit<ProfileOrganizationMember, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.profileOrganizationMembers], async () => {
+        const existing = await db.profileOrganizationMembers.get(id);
+        if (!existing) {
+            throw new Error(`Profile Organization Member ${id} not found`);
+        }
+        const memberData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_profile_organization_member',
+            data: memberData,
+        });
+        await db.profileOrganizationMembers.update(id, memberData);
     });
+    await syncToServer();
 }
 
 export async function deleteProfileOrganizationMember(id: string): Promise<void> {
-    await queueMutation({
-        operation: 'delete_profile_organization_member',
-        data: { id },
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.profileOrganizationMembers], async () => {
+        await queueMutation({
+            operation: 'delete_profile_organization_member',
+            data: { id },
+        });
+        await db.profileOrganizationMembers.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
     });
+    await syncToServer();
 }
 
-export async function createTicket(data: Ticket): Promise<void> {
-    await queueMutation({
-        operation: 'create_ticket',
-        data,
+export async function createTicket(data: Omit<Ticket, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const ticketData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.tickets], async () => {
+        await queueMutation({
+            operation: 'create_ticket',
+            data: ticketData,
+        });
+        await db.tickets.put(ticketData);
     });
+    await syncToServer();
 }
 
-export async function updateTicket(data: Ticket): Promise<void> {
-    await queueMutation({
-        operation: 'update_ticket',
-        data,
+export async function updateTicket(id: string, data: Partial<Omit<Ticket, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.tickets], async () => {
+        const existing = await db.tickets.get(id);
+        if (!existing) {
+            throw new Error(`Ticket ${id} not found`);
+        }
+        const ticketData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_ticket',
+            data: ticketData,
+        });
+        await db.tickets.update(id, ticketData);
     });
+    await syncToServer();
 }
 
 export async function deleteTicket(id: string): Promise<void> {
-    await queueMutation({
-        operation: 'delete_ticket',
-        data: { id },
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.tickets], async () => {
+        await queueMutation({
+            operation: 'delete_ticket',
+            data: { id },
+        });
+        await db.tickets.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
     });
+    await syncToServer();
 }
 
-export async function createTicketComment(data: TicketComment): Promise<void> {
-    await queueMutation({
-        operation: 'create_ticket_comment',
-        data,
+export async function createTicketComment(data: Omit<TicketComment, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const commentData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.ticketComments], async () => {
+        await queueMutation({
+            operation: 'create_ticket_comment',
+            data: commentData,
+        });
+        await db.ticketComments.put(commentData);
     });
+    await syncToServer();
 }
 
 export async function deleteTicketComment(id: string): Promise<void> {
-    await queueMutation({
-        operation: 'delete_ticket_comment',
-        data: { id },
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketComments], async () => {
+        await queueMutation({
+            operation: 'delete_ticket_comment',
+            data: { id },
+        });
+        await db.ticketComments.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
     });
+    await syncToServer();
 }
 
 // Get all unsynced mutations
@@ -319,5 +349,30 @@ export async function applyMutation(operation: Operation): Promise<void> {
                 deleted_at: new Date().toISOString(),
             });
             break;
+    }
+}
+
+// Sync local mutations to server
+export async function syncToServer(): Promise<void> {
+    try {
+        // Get all unsynced mutations
+        const unsyncedMutations = await db.mutations
+            .where('synced')
+            .equals(0)
+            .toArray();
+
+        if (unsyncedMutations.length === 0) {
+            return;
+        }
+
+        // Send mutations to server
+        await client.sync.mutate(unsyncedMutations.map(m => m.operation));
+
+        // Mark mutations as synced
+        await markMutationsSynced(unsyncedMutations.map(m => m.id!));
+
+    } catch (error) {
+        console.error('Error syncing to server:', error);
+        throw error;
     }
 } 
