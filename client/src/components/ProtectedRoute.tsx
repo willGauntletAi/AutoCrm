@@ -2,25 +2,25 @@ import { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { User } from '@supabase/supabase-js'
-import { ProfileContext } from '../contexts/ProfileContext'
-import { trpc } from '../lib/trpc'
+import { db } from '../lib/db'
+import { useLiveQuery } from 'dexie-react-hooks'
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true)
     const [user, setUser] = useState<User | null>(null)
     const location = useLocation()
-    const { data, refetch, isRefetching, isLoading } = trpc.getProfile.useQuery(undefined, {
-        enabled: !!user,
-        refetchOnWindowFocus: false,
-        retry: (failureCount, error: any) => {
-            // Don't retry on 401 errors
-            if (error.data?.httpStatus === 401) {
-                return false
-            }
-            // For other errors, retry up to 3 times
-            return failureCount < 3
-        }
-    })
+
+    const profile = useLiveQuery(
+        async () => {
+            console.log('user', user)
+            if (!user) return null
+            const result = await db.profiles.where('id').equals(user.id).first()
+            console.log('result', result)
+            return result ?? null
+        },
+        [user],
+        null
+    )
 
     useEffect(() => {
         async function loadUser() {
@@ -37,9 +37,6 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
         const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             const currentUser = session?.user ?? null
             setUser(currentUser)
-            if (!currentUser) {
-                refetch()
-            }
         })
 
         return () => {
@@ -47,7 +44,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
         }
     }, [])
 
-    if (loading || isLoading || isRefetching) {
+    if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -60,13 +57,9 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     }
 
     // Redirect to profile page if user has no profile
-    if (!data && location.pathname !== '/create-profile') {
+    if (!profile && location.pathname !== '/create-profile') {
         return <Navigate to="/create-profile" state={{ from: location }} replace />
     }
 
-    return (
-        <ProfileContext.Provider value={{ user, profile: data || null, loading }}>
-            {children}
-        </ProfileContext.Provider>
-    )
+    return children
 } 

@@ -62,7 +62,7 @@ export class AutoCRMDatabase extends Dexie {
         this.version(1).stores({
             profiles: '&id, full_name, created_at, updated_at',
             organizations: '&id, name, created_at, updated_at',
-            profileOrganizationMembers: '&id, profile_id, organization_id, created_at, updated_at',
+            profileOrganizationMembers: '&id, [organization_id+profile_id], profile_id, organization_id, created_at, updated_at',
             tickets: '&id, title, status, priority, created_by, assigned_to, organization_id, created_at, updated_at',
             ticketComments: '&id, ticket_id, user_id, created_at, updated_at',
             system: '&key',

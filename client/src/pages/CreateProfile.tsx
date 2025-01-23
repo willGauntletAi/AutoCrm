@@ -4,34 +4,42 @@ import { Button } from "../components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card"
 import { Input } from "../components/ui/input"
 import { Label } from "../components/ui/label"
-import { trpc } from '../lib/trpc'
+import { createProfile } from '../lib/mutations'
+import { useAuth } from '../lib/auth'
 
 export default function CreateProfile() {
     const [fullName, setFullName] = useState('')
     const [avatarUrl, setAvatarUrl] = useState('')
     const [error, setError] = useState('')
+    const [isLoading, setIsLoading] = useState(false)
     const navigate = useNavigate()
-    const utils = trpc.useContext()
+    const { user, loading } = useAuth()
 
-    const createProfile = trpc.createProfile.useMutation({
-        onSuccess: () => {
-            // Invalidate the profile query so it refetches when we navigate back
-            utils.getProfile.invalidate()
-            navigate('/')
-        },
-        onError: (error) => {
-            setError(error.message)
-        }
-    })
+    if (loading) {
+        return <div>Loading...</div>
+    }
+
+    if (!user) {
+        return <div>Not authenticated</div>
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setError('')
+        setIsLoading(true)
 
-        createProfile.mutate({
-            fullName,
-            avatarUrl: avatarUrl || undefined
-        })
+        try {
+            await createProfile({
+                id: user.id,
+                full_name: fullName,
+                avatar_url: avatarUrl || null,
+            })
+            navigate('/')
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred while creating your profile')
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
@@ -61,7 +69,7 @@ export default function CreateProfile() {
                                     required
                                     placeholder="Enter your full name"
                                     className="text-gray-900"
-                                    disabled={createProfile.isLoading}
+                                    disabled={isLoading}
                                 />
                             </div>
                         </div>
@@ -75,16 +83,16 @@ export default function CreateProfile() {
                                     onChange={(e) => setAvatarUrl(e.target.value)}
                                     placeholder="Enter your avatar URL"
                                     className="text-gray-900"
-                                    disabled={createProfile.isLoading}
+                                    disabled={isLoading}
                                 />
                             </div>
                         </div>
                         <Button
                             type="submit"
-                            disabled={createProfile.isLoading}
+                            disabled={isLoading}
                             className="w-full"
                         >
-                            {createProfile.isLoading ? 'Creating Profile...' : 'Create Profile'}
+                            {isLoading ? 'Creating Profile...' : 'Create Profile'}
                         </Button>
                     </form>
                 </CardContent>

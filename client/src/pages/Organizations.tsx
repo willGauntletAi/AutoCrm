@@ -7,6 +7,7 @@ import { db } from '../lib/db';
 import type { Organization } from '../lib/db';
 import { createOrganization } from '../lib/mutations';
 import { useState } from 'react';
+import OrganizationMembers from '../components/OrganizationMembers';
 
 export default function Organizations() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -67,21 +68,24 @@ export default function Organizations() {
                     </div>
                 )}
 
-                <div className="grid gap-4">
+                <div className="space-y-8">
                     {organizations.map((org: Organization) => (
-                        <Card key={org.id}>
-                            <CardHeader>
-                                <CardTitle>{org.name}</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-sm text-gray-500">
-                                    Created {new Date(org.created_at || '').toLocaleDateString()}
-                                </p>
-                                <Button variant="link" className="mt-2 p-0" asChild>
-                                    <Link to={`/${org.id}/tickets`}>View Tickets</Link>
-                                </Button>
-                            </CardContent>
-                        </Card>
+                        <div key={org.id} className="space-y-4">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>{org.name}</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-sm text-gray-500">
+                                        Created {new Date(org.created_at || '').toLocaleDateString()}
+                                    </p>
+                                    <Button variant="link" className="mt-2 p-0" asChild>
+                                        <Link to={`/${org.id}/tickets`}>View Tickets</Link>
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                            <OrganizationMembers organizationId={org.id} />
+                        </div>
                     ))}
 
                     {organizations.length === 0 && (
