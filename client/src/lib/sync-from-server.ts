@@ -67,13 +67,15 @@ export async function syncFromServer() {
             organizationsTimestamp,
             membersTimestamp,
             ticketsTimestamp,
-            commentsTimestamp
+            commentsTimestamp,
+            invitationsTimestamp
         ] = await Promise.all([
             getLatestTimestamp(db.profiles),
             getLatestTimestamp(db.organizations),
             getLatestTimestamp(db.profileOrganizationMembers),
             getLatestTimestamp(db.tickets),
-            getLatestTimestamp(db.ticketComments)
+            getLatestTimestamp(db.ticketComments),
+            getLatestTimestamp(db.organizationInvitations)
         ]);
 
         // Fetch updated data from Supabase
@@ -82,7 +84,8 @@ export async function syncFromServer() {
             { data: organizations, error: orgsError },
             { data: members, error: membersError },
             { data: tickets, error: ticketsError },
-            { data: comments, error: commentsError }
+            { data: comments, error: commentsError },
+            { data: invitations, error: invitationsError }
         ] = await Promise.all([
             supabase
                 .from('profiles')
@@ -108,6 +111,11 @@ export async function syncFromServer() {
                 .from('ticket_comments')
                 .select('*')
                 .gte('updated_at', commentsTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('organization_invitations')
+                .select('*')
+                .gte('updated_at', invitationsTimestamp)
                 .is('deleted_at', null)
         ]);
 
@@ -117,6 +125,7 @@ export async function syncFromServer() {
         if (membersError) throw membersError;
         if (ticketsError) throw ticketsError;
         if (commentsError) throw commentsError;
+        if (invitationsError) throw invitationsError;
 
         // Update local DB
         await db.transaction('rw', [
@@ -124,7 +133,8 @@ export async function syncFromServer() {
             db.organizations,
             db.profileOrganizationMembers,
             db.tickets,
-            db.ticketComments
+            db.ticketComments,
+            db.organizationInvitations
         ], async () => {
             // Use bulkPut to upsert records
             if (profiles?.length) {
@@ -141,6 +151,9 @@ export async function syncFromServer() {
             }
             if (comments?.length) {
                 await db.ticketComments.bulkPut(comments as TicketComment[]);
+            }
+            if (invitations?.length) {
+                await db.organizationInvitations.bulkPut(invitations as OrganizationInvitation[]);
             }
         });
 
