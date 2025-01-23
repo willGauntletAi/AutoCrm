@@ -20,10 +20,8 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
     const profile = useLiveQuery(
         async () => {
-            console.log('user', user)
-            if (!user) return undefined
+            if (!user) return null
             const result = await db.profiles.where('id').equals(user.id).first()
-            console.log('result', result)
             return result ?? null
         },
         [user]
@@ -50,8 +48,12 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
             authSubscription.unsubscribe()
         }
     }, [])
+    console.log('user', user)
 
-    if (authLoading || profile === undefined || isInitialized === undefined || (user && !isInitialized)) {
+    console.log('isInitialized', isInitialized)
+    console.log('profile', profile)
+    console.log('authLoading', authLoading)
+    if (authLoading || profile === undefined || (user && !isInitialized)) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>

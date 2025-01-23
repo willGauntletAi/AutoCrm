@@ -13,29 +13,28 @@ CREATE TABLE IF NOT EXISTS public.organization_invitations (
 -- Enable RLS
 ALTER TABLE public.organization_invitations ENABLE ROW LEVEL SECURITY;
 
--- Allow organization admins to view invitations
-CREATE POLICY "Organization admins can view invitations"
+-- Create a single policy that combines both conditions with OR
+CREATE POLICY "View invitations if admin or invited"
     ON public.organization_invitations
     FOR SELECT
     TO authenticated
     USING (
-        EXISTS (
-            SELECT 1 FROM public.profile_organization_members
-            WHERE profile_organization_members.organization_id = organization_invitations.organization_id
-            AND profile_organization_members.profile_id = auth.uid()
-            AND profile_organization_members.role IN ('admin', 'owner')
-            AND profile_organization_members.deleted_at IS NULL
+        (
+            -- Organization admins can view all invitations for their org
+            EXISTS (
+                SELECT 1 FROM public.profile_organization_members
+                WHERE profile_organization_members.organization_id = organization_invitations.organization_id
+                AND profile_organization_members.profile_id = auth.uid()
+                AND profile_organization_members.role IN ('admin', 'owner')
+                AND profile_organization_members.deleted_at IS NULL
+            )
         )
-    );
-
--- Allow users to view their own invitations
-CREATE POLICY "Users can view their own invitations"
-    ON public.organization_invitations
-    FOR SELECT
-    TO authenticated
-    USING (
-        email = (SELECT email FROM auth.users WHERE id = auth.uid())
-        AND deleted_at IS NULL
+        OR
+        (
+            -- Users can view their own invitations
+            email = (SELECT email FROM auth.users WHERE id = auth.uid())
+            AND deleted_at IS NULL
+        )
     );
 
 -- Create an index on email for faster lookups
