@@ -62,15 +62,26 @@ async function updateProfile(data: z.infer<typeof SyncInputSchema>[number] & { o
 
 // Organization operations
 async function createOrganization(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'create_organization' }): Promise<TableRow<'organizations'>> {
-    return await db.insertInto('organizations')
-        .values({
-            id: data.data.id,
-            name: data.data.name,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.insertInto('organizations')
+            .values({
+                id: data.data.id,
+                name: data.data.name,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        // If it's a unique constraint violation, return the existing record
+        if (error instanceof Error && error.message.includes('duplicate key')) {
+            return await db.selectFrom('organizations')
+                .selectAll()
+                .where('id', '=', data.data.id)
+                .executeTakeFirstOrThrow();
+        }
+        throw error;
+    }
 }
 
 async function updateOrganization(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'update_organization' }, memberships: Record<string, string>): Promise<TableRow<'organizations'> | null> {
@@ -140,11 +151,22 @@ async function deleteOrganization(data: z.infer<typeof SyncInputSchema>[number] 
 
 // Profile Organization Member operations
 async function createProfileOrganizationMember(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'create_profile_organization_member' }, memberships: Record<string, string>): Promise<TableRow<'profile_organization_members'> | null> {
-    // Only admins can create members
-    if (memberships[data.data.organization_id] !== 'admin') {
+    // Check if this is the first member of the organization
+    const existingMembers = await db.selectFrom('profile_organization_members')
+        .selectAll()
+        .where('organization_id', '=', data.data.organization_id)
+        .where('deleted_at', 'is', null)
+        .execute();
+
+    // Allow if this is the first member, otherwise require admin permission
+    if (existingMembers.length > 0 && memberships[data.data.organization_id] !== 'admin') {
         return null;
     }
 
+    const duplicate = existingMembers.find(m => m.id === data.data.id);
+    if (duplicate) {
+        return duplicate;
+    }
     return await db.insertInto('profile_organization_members')
         .values({
             id: data.data.id,
@@ -233,21 +255,32 @@ async function createTicket(data: z.infer<typeof SyncInputSchema>[number] & { op
         return null;
     }
 
-    return await db.insertInto('tickets')
-        .values({
-            id: data.data.id,
-            title: data.data.title,
-            description: data.data.description,
-            status: data.data.status,
-            priority: data.data.priority,
-            created_by: data.data.created_by,
-            assigned_to: data.data.assigned_to,
-            organization_id: data.data.organization_id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.insertInto('tickets')
+            .values({
+                id: data.data.id,
+                title: data.data.title,
+                description: data.data.description,
+                status: data.data.status,
+                priority: data.data.priority,
+                created_by: data.data.created_by,
+                assigned_to: data.data.assigned_to,
+                organization_id: data.data.organization_id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        // If it's a unique constraint violation, return the existing record
+        if (error instanceof Error && error.message.includes('duplicate key')) {
+            return await db.selectFrom('tickets')
+                .selectAll()
+                .where('id', '=', data.data.id)
+                .executeTakeFirstOrThrow();
+        }
+        throw error;
+    }
 }
 
 async function updateTicket(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'update_ticket' }, memberships: Record<string, string>, userId: string): Promise<TableRow<'tickets'> | null> {
@@ -337,17 +370,28 @@ async function createTicketComment(data: z.infer<typeof SyncInputSchema>[number]
         return null;
     }
 
-    return await db.insertInto('ticket_comments')
-        .values({
-            id: data.data.id,
-            ticket_id: data.data.ticket_id,
-            user_id: data.data.user_id,
-            comment: data.data.comment,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.insertInto('ticket_comments')
+            .values({
+                id: data.data.id,
+                ticket_id: data.data.ticket_id,
+                user_id: data.data.user_id,
+                comment: data.data.comment,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        // If it's a unique constraint violation, return the existing record
+        if (error instanceof Error && error.message.includes('duplicate key')) {
+            return await db.selectFrom('ticket_comments')
+                .selectAll()
+                .where('id', '=', data.data.id)
+                .executeTakeFirstOrThrow();
+        }
+        throw error;
+    }
 }
 
 async function deleteTicketComment(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_ticket_comment' }, userId: string): Promise<TableRow<'ticket_comments'> | null> {

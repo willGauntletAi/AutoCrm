@@ -41,7 +41,7 @@ export async function createProfile(data: Omit<Profile, 'created_at' | 'updated_
         });
         await db.profiles.put(profileData);
     });
-    await syncToServer();
+    syncToServer();
 }
 
 export async function updateProfile(id: string, data: Partial<Omit<Profile, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
@@ -294,7 +294,7 @@ export async function getUnsyncedMutations(): Promise<Operation[]> {
 export async function markMutationsSynced(ids: number[]): Promise<void> {
     await Promise.all(
         ids.map(id =>
-            db.mutations.update(id, { synced: 0 })
+            db.mutations.update(id, { synced: 1 })
         )
     );
 }
