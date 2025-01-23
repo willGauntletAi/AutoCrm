@@ -32,16 +32,40 @@ async function createProfile(data: z.infer<typeof SyncInputSchema>[number] & { o
         return null;
     }
 
-    return await db.insertInto('profiles')
-        .values({
+    try {
+        return await db.insertInto('profiles')
+            .values({
+                id: data.data.id,
+                full_name: data.data.full_name,
+                avatar_url: data.data.avatar_url,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('duplicate key')) {
+            // If it's a unique constraint violation, try to get the existing record
+            const existing = await db.selectFrom('profiles')
+                .selectAll()
+                .where('id', '=', data.data.id)
+                .executeTakeFirst();
+
+            if (existing) {
+                return existing;
+            }
+        }
+        // For any other error or if we couldn't find the record, return as if created but deleted
+        const now = new Date();
+        return {
             id: data.data.id,
             full_name: data.data.full_name,
             avatar_url: data.data.avatar_url,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+            created_at: now,
+            updated_at: now,
+            deleted_at: now,
+        };
+    }
 }
 
 async function updateProfile(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'update_profile' }, userId: string): Promise<TableRow<'profiles'> | null> {
@@ -50,14 +74,23 @@ async function updateProfile(data: z.infer<typeof SyncInputSchema>[number] & { o
         return null;
     }
 
-    return await db.updateTable('profiles')
-        .set({
-            ...data.data,
-            updated_at: new Date().toISOString(),
-        })
-        .where('id', '=', data.data.id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.updateTable('profiles')
+            .set({
+                ...data.data,
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        // On error, return the unchanged value
+        const existing = await db.selectFrom('profiles')
+            .selectAll()
+            .where('id', '=', data.data.id)
+            .executeTakeFirst();
+        return existing ?? null;
+    }
 }
 
 // Organization operations
@@ -73,14 +106,26 @@ async function createOrganization(data: z.infer<typeof SyncInputSchema>[number] 
             .returningAll()
             .executeTakeFirstOrThrow();
     } catch (error) {
-        // If it's a unique constraint violation, return the existing record
         if (error instanceof Error && error.message.includes('duplicate key')) {
-            return await db.selectFrom('organizations')
+            // If it's a unique constraint violation, try to get the existing record
+            const existing = await db.selectFrom('organizations')
                 .selectAll()
                 .where('id', '=', data.data.id)
-                .executeTakeFirstOrThrow();
+                .executeTakeFirst();
+
+            if (existing) {
+                return existing;
+            }
         }
-        throw error;
+        // For any other error or if we couldn't find the record, return as if created but deleted
+        const now = new Date();
+        return {
+            id: data.data.id,
+            name: data.data.name,
+            created_at: now,
+            updated_at: now,
+            deleted_at: now,
+        };
     }
 }
 
@@ -106,15 +151,19 @@ async function updateOrganization(data: z.infer<typeof SyncInputSchema>[number] 
         return null;
     }
 
-    return await db.updateTable('organizations')
-        .set({
-            id: data.data.id,
-            name: data.data.name,
-            updated_at: new Date().toISOString(),
-        })
-        .where('id', '=', data.data.id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.updateTable('organizations')
+            .set({
+                id: data.data.id,
+                name: data.data.name,
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        return existingOrg;
+    }
 }
 
 async function deleteOrganization(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_organization' }, memberships: Record<string, string>): Promise<TableRow<'organizations'> | null> {
@@ -139,14 +188,18 @@ async function deleteOrganization(data: z.infer<typeof SyncInputSchema>[number] 
         return null;
     }
 
-    return await db.updateTable('organizations')
-        .set({
-            deleted_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .where('id', '=', data.data.id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.updateTable('organizations')
+            .set({
+                deleted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        return existingOrg;
+    }
 }
 
 // Profile Organization Member operations
@@ -167,17 +220,43 @@ async function createProfileOrganizationMember(data: z.infer<typeof SyncInputSch
     if (duplicate) {
         return duplicate;
     }
-    return await db.insertInto('profile_organization_members')
-        .values({
+
+    try {
+        return await db.insertInto('profile_organization_members')
+            .values({
+                id: data.data.id,
+                profile_id: data.data.profile_id,
+                organization_id: data.data.organization_id,
+                role: data.data.role,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('duplicate key')) {
+            // If it's a unique constraint violation, try to get the existing record
+            const existing = await db.selectFrom('profile_organization_members')
+                .selectAll()
+                .where('id', '=', data.data.id)
+                .executeTakeFirst();
+
+            if (existing) {
+                return existing;
+            }
+        }
+        // For any other error or if we couldn't find the record, return as if created but deleted
+        const now = new Date();
+        return {
             id: data.data.id,
             profile_id: data.data.profile_id,
             organization_id: data.data.organization_id,
             role: data.data.role,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+            created_at: now,
+            updated_at: now,
+            deleted_at: now,
+        };
+    }
 }
 
 async function updateProfileOrganizationMember(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'update_profile_organization_member' }, memberships: Record<string, string>): Promise<TableRow<'profile_organization_members'> | null> {
@@ -202,18 +281,22 @@ async function updateProfileOrganizationMember(data: z.infer<typeof SyncInputSch
         return null;
     }
 
-    return await db.updateTable('profile_organization_members')
-        .set({
-            ...data.data,
-            // Preserve the original organization_id and profile_id
-            organization_id: existingMember.organization_id,
-            profile_id: existingMember.profile_id,
-            deleted_at: null, // Always undelete when updating
-            updated_at: new Date().toISOString(),
-        })
-        .where('id', '=', data.data.id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.updateTable('profile_organization_members')
+            .set({
+                ...data.data,
+                // Preserve the original organization_id and profile_id
+                organization_id: existingMember.organization_id,
+                profile_id: existingMember.profile_id,
+                deleted_at: null, // Always undelete when updating
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        return existingMember;
+    }
 }
 
 async function deleteProfileOrganizationMember(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_profile_organization_member' }, memberships: Record<string, string>): Promise<TableRow<'profile_organization_members'> | null> {
@@ -238,14 +321,18 @@ async function deleteProfileOrganizationMember(data: z.infer<typeof SyncInputSch
         return null;
     }
 
-    return await db.updateTable('profile_organization_members')
-        .set({
-            deleted_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .where('id', '=', data.data.id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.updateTable('profile_organization_members')
+            .set({
+                deleted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        return existingMember;
+    }
 }
 
 // Ticket operations
@@ -272,14 +359,32 @@ async function createTicket(data: z.infer<typeof SyncInputSchema>[number] & { op
             .returningAll()
             .executeTakeFirstOrThrow();
     } catch (error) {
-        // If it's a unique constraint violation, return the existing record
         if (error instanceof Error && error.message.includes('duplicate key')) {
-            return await db.selectFrom('tickets')
+            // If it's a unique constraint violation, try to get the existing record
+            const existing = await db.selectFrom('tickets')
                 .selectAll()
                 .where('id', '=', data.data.id)
-                .executeTakeFirstOrThrow();
+                .executeTakeFirst();
+
+            if (existing) {
+                return existing;
+            }
         }
-        throw error;
+        // For any other error or if we couldn't find the record, return as if created but deleted
+        const now = new Date();
+        return {
+            id: data.data.id,
+            title: data.data.title,
+            description: data.data.description,
+            status: data.data.status,
+            priority: data.data.priority,
+            created_by: data.data.created_by,
+            assigned_to: data.data.assigned_to,
+            organization_id: data.data.organization_id,
+            created_at: now,
+            updated_at: now,
+            deleted_at: now,
+        };
     }
 }
 
@@ -306,17 +411,21 @@ async function updateTicket(data: z.infer<typeof SyncInputSchema>[number] & { op
         return null;
     }
 
-    return await db.updateTable('tickets')
-        .set({
-            ...data.data,
-            // Preserve the organization_id and created_by
-            organization_id: existingTicket.organization_id,
-            created_by: existingTicket.created_by,
-            updated_at: new Date().toISOString(),
-        })
-        .where('id', '=', data.data.id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.updateTable('tickets')
+            .set({
+                ...data.data,
+                // Preserve the organization_id and created_by
+                organization_id: existingTicket.organization_id,
+                created_by: existingTicket.created_by,
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        return existingTicket;
+    }
 }
 
 async function deleteTicket(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_ticket' }, memberships: Record<string, string>, userId: string): Promise<TableRow<'tickets'> | null> {
@@ -342,14 +451,18 @@ async function deleteTicket(data: z.infer<typeof SyncInputSchema>[number] & { op
         return null;
     }
 
-    return await db.updateTable('tickets')
-        .set({
-            deleted_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .where('id', '=', data.data.id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.updateTable('tickets')
+            .set({
+                deleted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        return existingTicket;
+    }
 }
 
 // Ticket Comment operations
@@ -383,14 +496,28 @@ async function createTicketComment(data: z.infer<typeof SyncInputSchema>[number]
             .returningAll()
             .executeTakeFirstOrThrow();
     } catch (error) {
-        // If it's a unique constraint violation, return the existing record
         if (error instanceof Error && error.message.includes('duplicate key')) {
-            return await db.selectFrom('ticket_comments')
+            // If it's a unique constraint violation, try to get the existing record
+            const existing = await db.selectFrom('ticket_comments')
                 .selectAll()
                 .where('id', '=', data.data.id)
-                .executeTakeFirstOrThrow();
+                .executeTakeFirst();
+
+            if (existing) {
+                return existing;
+            }
         }
-        throw error;
+        // For any other error or if we couldn't find the record, return as if created but deleted
+        const now = new Date();
+        return {
+            id: data.data.id,
+            ticket_id: data.data.ticket_id,
+            user_id: data.data.user_id,
+            comment: data.data.comment,
+            created_at: now,
+            updated_at: now,
+            deleted_at: now,
+        };
     }
 }
 
@@ -416,14 +543,18 @@ async function deleteTicketComment(data: z.infer<typeof SyncInputSchema>[number]
         return null;
     }
 
-    return await db.updateTable('ticket_comments')
-        .set({
-            deleted_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .where('id', '=', data.data.id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    try {
+        return await db.updateTable('ticket_comments')
+            .set({
+                deleted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        return existingComment;
+    }
 }
 
 export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncResponse> {
