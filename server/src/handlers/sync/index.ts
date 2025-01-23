@@ -737,6 +737,107 @@ async function deleteOrganizationInvitation(data: z.infer<typeof SyncInputSchema
     return existingInvitation;
 }
 
+async function acceptInvitation(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'accept_invitation' }, userId: string): Promise<{
+    organization_invitations: TableRow<'organization_invitations'>[],
+    profile_organization_members: TableRow<'profile_organization_members'>[],
+    organizations: TableRow<'organizations'>[],
+    tickets: TableRow<'tickets'>[],
+    ticket_comments: TableRow<'ticket_comments'>[],
+} | null> {
+    // First get the invitation
+    const invitation = await db.selectFrom('organization_invitations')
+        .selectAll()
+        .where('id', '=', data.data.invitation_id)
+        .where('deleted_at', 'is', null)
+        .executeTakeFirst();
+
+    if (!invitation) {
+        return null;
+    }
+
+    // Verify the user's email matches the invitation
+    const user = await db.selectFrom('auth.users')
+        .select(['email'])
+        .where('id', '=', userId)
+        .executeTakeFirst();
+
+    if (!user || user.email !== invitation.email) {
+        return null;
+    }
+
+    const now = new Date().toISOString();
+
+    // Create the membership
+    const membership = await db.insertInto('profile_organization_members')
+        .values({
+            id: crypto.randomUUID(),
+            profile_id: userId,
+            organization_id: invitation.organization_id,
+            role: invitation.role,
+            created_at: now,
+            updated_at: now,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+    // Mark the invitation as deleted
+    const updatedInvitation = await db.updateTable('organization_invitations')
+        .set({
+            deleted_at: now,
+            updated_at: now,
+        })
+        .where('id', '=', invitation.id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+    // Get all organization data
+    const [
+        organization,
+        invitations,
+        members,
+        tickets,
+        comments
+    ] = await Promise.all([
+        db.selectFrom('organizations')
+            .selectAll()
+            .where('id', '=', invitation.organization_id)
+            .executeTakeFirst(),
+        db.selectFrom('organization_invitations')
+            .selectAll()
+            .where('organization_id', '=', invitation.organization_id)
+            .where('deleted_at', 'is', null)
+            .execute(),
+        db.selectFrom('profile_organization_members')
+            .selectAll()
+            .where('organization_id', '=', invitation.organization_id)
+            .where('deleted_at', 'is', null)
+            .execute(),
+        db.selectFrom('tickets')
+            .selectAll()
+            .where('organization_id', '=', invitation.organization_id)
+            .where('deleted_at', 'is', null)
+            .execute(),
+        db.selectFrom('ticket_comments')
+            .selectAll()
+            .innerJoin('tickets', 'tickets.id', 'ticket_comments.ticket_id')
+            .where('tickets.organization_id', '=', invitation.organization_id)
+            .where('ticket_comments.deleted_at', 'is', null)
+            .execute()
+    ]);
+
+    if (!organization) {
+        return null;
+    }
+
+    return {
+        organization_invitations: [updatedInvitation, ...invitations],
+        profile_organization_members: [membership, ...members],
+        organizations: [organization],
+        tickets: tickets,
+        ticket_comments: comments,
+    };
+}
+
 export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncResponse> {
     const results: SyncResponse = {};
 
@@ -878,6 +979,24 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
                 if (result) {
                     if (!results.organization_invitations) results.organization_invitations = [];
                     results.organization_invitations.push(result);
+                }
+                break;
+            }
+
+            case 'accept_invitation': {
+                const result = await acceptInvitation(operation, ctx.user.id);
+                if (result) {
+                    if (!results.organization_invitations) results.organization_invitations = [];
+                    if (!results.profile_organization_members) results.profile_organization_members = [];
+                    if (!results.organizations) results.organizations = [];
+                    if (!results.tickets) results.tickets = [];
+                    if (!results.ticket_comments) results.ticket_comments = [];
+
+                    results.organization_invitations.push(...result.organization_invitations);
+                    results.profile_organization_members.push(...result.profile_organization_members);
+                    results.organizations.push(...result.organizations);
+                    results.tickets.push(...result.tickets);
+                    results.ticket_comments.push(...result.ticket_comments);
                 }
                 break;
             }

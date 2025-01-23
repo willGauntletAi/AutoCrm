@@ -24,6 +24,7 @@ export async function queueMutation(operation: Operation): Promise<void> {
         synced: 0,
     };
     await db.mutations.add(mutation);
+    await applyMutation(operation);
 }
 
 // Helper functions for each operation type
@@ -335,6 +336,16 @@ export async function deleteOrganizationInvitation(id: string): Promise<void> {
     await syncToServer();
 }
 
+export async function acceptInvitation(invitationId: string): Promise<void> {
+    await db.transaction('rw', [db.mutations], async () => {
+        await queueMutation({
+            operation: 'accept_invitation',
+            data: { invitation_id: invitationId },
+        });
+    });
+    await syncToServer();
+}
+
 // Get all unsynced mutations
 export async function getUnsyncedMutations(): Promise<Operation[]> {
     const mutations = await db.mutations
@@ -409,12 +420,6 @@ export async function applyMutation(operation: Operation): Promise<void> {
         case 'update_organization_invitation':
             await db.organizationInvitations.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
             break;
-
-        case 'delete_organization_invitation':
-            await db.organizationInvitations.update(operation.data.id, {
-                deleted_at: new Date().toISOString(),
-            });
-            break;
     }
 }
 
@@ -432,38 +437,39 @@ export async function syncToServer(): Promise<void> {
         }
 
         // Send mutations to server
-        const result = await client.sync.mutate(unsyncedMutations.map(m => m.operation));
+        await client.sync.mutate(unsyncedMutations.map(m => m.operation)).then(async (result) => {
 
-        // Update local records with server timestamps
-        await db.transaction('rw', [
-            db.profiles,
-            db.organizations,
-            db.profileOrganizationMembers,
-            db.tickets,
-            db.ticketComments,
-            db.mutations
-        ], async () => {
-            // Update each type of record with server response
-            if (result.profiles?.length) {
-                await db.profiles.bulkPut(result.profiles);
-            }
-            if (result.organizations?.length) {
-                await db.organizations.bulkPut(result.organizations);
-            }
-            if (result.profile_organization_members?.length) {
-                await db.profileOrganizationMembers.bulkPut(result.profile_organization_members);
-            }
-            if (result.tickets?.length) {
-                await db.tickets.bulkPut(result.tickets);
-            }
-            if (result.ticket_comments?.length) {
-                await db.ticketComments.bulkPut(result.ticket_comments);
-            }
+            // Update local records with server timestamps
+            await db.transaction('rw', [
+                db.profiles,
+                db.organizations,
+                db.profileOrganizationMembers,
+                db.tickets,
+                db.ticketComments,
+                db.mutations
+            ], async () => {
+                // Update each type of record with server response
+                if (result.profiles?.length) {
+                    await db.profiles.bulkPut(result.profiles);
+                }
+                if (result.organizations?.length) {
+                    await db.organizations.bulkPut(result.organizations);
+                }
+                if (result.profile_organization_members?.length) {
+                    await db.profileOrganizationMembers.bulkPut(result.profile_organization_members);
+                }
+                if (result.tickets?.length) {
+                    await db.tickets.bulkPut(result.tickets);
+                }
+                if (result.ticket_comments?.length) {
+                    await db.ticketComments.bulkPut(result.ticket_comments);
+                }
 
-            // Mark mutations as synced
-            await markMutationsSynced(unsyncedMutations.map(m => m.id!));
+                // Mark mutations as synced
+                await markMutationsSynced(unsyncedMutations.map(m => m.id!));
+            });
+
         });
-
     } catch (error) {
         console.error('Error syncing to server:', error);
         throw error;
