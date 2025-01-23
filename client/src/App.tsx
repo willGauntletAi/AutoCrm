@@ -12,6 +12,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import { supabase } from './lib/supabase'
 import Tickets from './pages/Tickets'
 import Ticket from './pages/Ticket'
+import OrganizationLayout from './components/OrganizationLayout'
 
 function App() {
   const [queryClient] = useState(() => new QueryClient())
@@ -64,16 +65,22 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            {/* Organization Routes */}
             <Route
-              path="/:organization_id/tickets"
+              path="/:organization_id"
               element={
                 <ProtectedRoute>
-                  <Tickets />
+                  <OrganizationLayout />
                 </ProtectedRoute>
               }
-            />
-            <Route path="/:organization_id/tickets/:ticket_id" element={<Ticket />} />
-            <Route path="/:organization_id/profile" element={<Profile />} />
+            >
+              <Route index element={<div>Dashboard (Coming Soon)</div>} />
+              <Route path="tickets" element={<Tickets />} />
+              <Route path="tickets/:ticket_id" element={<Ticket />} />
+              <Route path="customers" element={<div>Customers (Coming Soon)</div>} />
+              <Route path="employees" element={<div>Employees (Coming Soon)</div>} />
+              <Route path="profile" element={<Profile />} />
+            </Route>
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </BrowserRouter>
