@@ -1,9 +1,9 @@
 -- Drop the existing policy and function
 DROP POLICY IF EXISTS "View invitations if admin or invited" ON public.organization_invitations;
-DROP FUNCTION IF EXISTS public.check_invitation_access(uuid);
+DROP FUNCTION IF EXISTS public.check_invitation_access();
 
 -- Create security definer function for checking invitation access
-CREATE OR REPLACE FUNCTION public.check_invitation_access()
+CREATE OR REPLACE FUNCTION public.check_invitation_access(org_id uuid, invite_email text)
 RETURNS boolean
 SECURITY DEFINER
 SET search_path = public
@@ -22,14 +22,14 @@ BEGIN
         EXISTS (
             SELECT 1 
             FROM public.profile_organization_members
-            WHERE profile_organization_members.organization_id = organization_invitations.organization_id
+            WHERE profile_organization_members.organization_id = org_id
             AND profile_organization_members.profile_id = auth.uid()
             AND profile_organization_members.role IN ('admin', 'owner')
             AND profile_organization_members.deleted_at IS NULL
         )
         OR
-        -- Users can view their own invitations
-        (organization_invitations.email = user_email)
+        -- Users can view their own invitations (including deleted ones)
+        (invite_email = user_email)
     );
 END;
 $$;
@@ -40,5 +40,5 @@ CREATE POLICY "View invitations if admin or invited"
     FOR SELECT
     TO authenticated
     USING (
-        check_invitation_access()
+        check_invitation_access(organization_id, email)
     ); 

@@ -48,11 +48,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
             authSubscription.unsubscribe()
         }
     }, [])
-    console.log('user', user)
 
-    console.log('isInitialized', isInitialized)
-    console.log('profile', profile)
-    console.log('authLoading', authLoading)
     if (authLoading || profile === undefined || (user && !isInitialized)) {
         return (
             <div className="min-h-screen flex items-center justify-center">

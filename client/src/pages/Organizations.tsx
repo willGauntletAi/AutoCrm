@@ -30,7 +30,7 @@ export default function Organizations() {
         async () => {
             if (!user?.email) return [];
             return await db.organizationInvitations
-                .filter(inv => !inv.deleted_at && inv.email === user.email)
+                .filter(inv => inv.email === user.email && !inv.deleted_at)
                 .toArray();
         },
         [user?.email],

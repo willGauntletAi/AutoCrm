@@ -325,13 +325,19 @@ function setupRealtimeSync() {
             schema: 'public',
             table: 'organization_invitations'
         }, async (payload: RealtimePostgresChangesPayload<OrganizationInvitation>) => {
-            if (payload.eventType === 'DELETE') {
-                await db.organizationInvitations.delete(payload.old.id);
-            } else {
-                await db.organizationInvitations.put(payload.new);
+
+            try {
+                if (payload.eventType === 'DELETE') {
+                    await db.organizationInvitations.delete(payload.old.id);
+                } else {
+                    await db.organizationInvitations.put(payload.new);
+                }
+            } catch (error) {
             }
         })
         .subscribe();
+
+    return realtimeChannel;
 }
 
 // Set up auth state change listener
