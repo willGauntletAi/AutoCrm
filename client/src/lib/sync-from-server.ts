@@ -1,7 +1,7 @@
 import Dexie from 'dexie';
 import { db } from './db';
 import { supabase } from './supabase';
-import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation, TicketTagKey, TicketTagNumberValueWithNumber, TicketTagTextValue, TicketTagDateValueWithDate, TicketTagDateValue } from './db';
+import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation, TicketTagKey, TicketTagNumberValueWithNumber, TicketTagTextValue, TicketTagDateValueWithDate, TicketTagDateValue, Macro } from './db';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { parseYMDDateString } from './utils';
 
@@ -50,7 +50,8 @@ async function clearDatabase() {
         db.ticketTagKeys,
         db.ticketTagDateValues,
         db.ticketTagNumberValues,
-        db.ticketTagTextValues
+        db.ticketTagTextValues,
+        db.macros
     ], async () => {
         await Promise.all([
             db.profiles.clear(),
@@ -62,7 +63,8 @@ async function clearDatabase() {
             db.ticketTagKeys.clear(),
             db.ticketTagDateValues.clear(),
             db.ticketTagNumberValues.clear(),
-            db.ticketTagTextValues.clear()
+            db.ticketTagTextValues.clear(),
+            db.macros.clear()
         ]);
     });
 }
@@ -81,7 +83,8 @@ export async function syncFromServer() {
             tagKeysTimestamp,
             tagDateValuesTimestamp,
             tagNumberValuesTimestamp,
-            tagTextValuesTimestamp
+            tagTextValuesTimestamp,
+            macrosTimestamp
         ] = await Promise.all([
             getLatestTimestamp(db.profiles),
             getLatestTimestamp(db.organizations),
@@ -92,7 +95,8 @@ export async function syncFromServer() {
             getLatestTimestamp(db.ticketTagKeys),
             getLatestTimestamp(db.ticketTagDateValues),
             getLatestTimestamp(db.ticketTagNumberValues),
-            getLatestTimestamp(db.ticketTagTextValues)
+            getLatestTimestamp(db.ticketTagTextValues),
+            getLatestTimestamp(db.macros)
         ]);
 
         // Fetch updated data from Supabase
@@ -106,7 +110,8 @@ export async function syncFromServer() {
             { data: tagKeys, error: tagKeysError },
             { data: tagDateValues, error: tagDateValuesError },
             { data: tagNumberValues, error: tagNumberValuesError },
-            { data: tagTextValues, error: tagTextValuesError }
+            { data: tagTextValues, error: tagTextValuesError },
+            { data: macros, error: macrosError }
         ] = await Promise.all([
             supabase
                 .from('profiles')
@@ -157,6 +162,11 @@ export async function syncFromServer() {
                 .from('ticket_tag_text_values')
                 .select('*')
                 .gte('updated_at', tagTextValuesTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('macros')
+                .select('*')
+                .gte('updated_at', macrosTimestamp)
                 .is('deleted_at', null)
         ]);
 
@@ -171,6 +181,7 @@ export async function syncFromServer() {
         if (tagDateValuesError) throw tagDateValuesError;
         if (tagNumberValuesError) throw tagNumberValuesError;
         if (tagTextValuesError) throw tagTextValuesError;
+        if (macrosError) throw macrosError;
 
         // Update local DB
         await db.transaction('rw', [
@@ -183,7 +194,8 @@ export async function syncFromServer() {
             db.ticketTagKeys,
             db.ticketTagDateValues,
             db.ticketTagNumberValues,
-            db.ticketTagTextValues
+            db.ticketTagTextValues,
+            db.macros
         ], async () => {
             // Use bulkPut to upsert records
             if (profiles?.length) {
@@ -215,6 +227,9 @@ export async function syncFromServer() {
             }
             if (tagTextValues?.length) {
                 await db.ticketTagTextValues.bulkPut(tagTextValues as TicketTagTextValue[]);
+            }
+            if (macros?.length) {
+                await db.macros.bulkPut(macros as Macro[]);
             }
         });
 
@@ -439,6 +454,17 @@ function setupRealtimeSync() {
                 await db.ticketTagTextValues.delete(payload.old.id);
             } else {
                 await db.ticketTagTextValues.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'macros'
+        }, async (payload: RealtimePostgresChangesPayload<Macro>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.macros.delete(payload.old.id);
+            } else {
+                await db.macros.put(payload.new);
             }
         })
         .subscribe();
