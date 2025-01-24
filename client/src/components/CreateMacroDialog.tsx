@@ -63,7 +63,6 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
             new_priority: undefined
         }
     });
-    const [selectedTagKey, setSelectedTagKey] = useState<string | null>(null);
     const [tagRequirements, setTagRequirements] = useState<Array<{ id: string; tagKeyId?: string }>>([]);
     const [isAddingTagValue, setIsAddingTagValue] = useState(false);
 
