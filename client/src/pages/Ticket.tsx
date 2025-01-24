@@ -62,6 +62,17 @@ export default function Ticket() {
     const { user } = useAuth()
     const [isTagsOpen, setIsTagsOpen] = useState(false)
 
+    // Add state for edited values
+    const [editedValues, setEditedValues] = useState<{
+        date: Map<string, string>,
+        number: Map<string, string>,
+        text: Map<string, string>
+    }>({
+        date: new Map(),
+        number: new Map(),
+        text: new Map()
+    })
+
     const ticket = useLiveQuery(
         async () => {
             return await db.tickets
@@ -197,74 +208,105 @@ export default function Ticket() {
             setIsUpdatingTicket(false)
         }
     }
-    const handleUpdateTag = async (tagKey: TicketTagKey, value: string) => {
+
+    const handleAddTag = async (tagKey: TicketTagKey, value: string) => {
         if (!ticket || !canEdit) return
 
         try {
             setIsUpdatingTags(true)
             setError(null)
 
-            const existingValues = tagData?.values
-            if (!existingValues) return
-
-            // Create or update the value based on tag type
+            // Create new value based on tag type
             switch (tagKey.tag_type) {
                 case 'date': {
-                    const existing = existingValues.date.get(tagKey.id)
                     const date = parseYMDDateString(value)
-                    if (existing) {
-                        await updateTicketTagDateValue(existing.id, {
-                            value: date
-                        })
-                    } else {
-                        await createTicketTagDateValue({
-                            id: crypto.randomUUID(),
-                            ticket_id: ticket_id!,
-                            tag_key_id: tagKey.id,
-                            value: date
-                        })
-                    }
+                    await createTicketTagDateValue({
+                        id: crypto.randomUUID(),
+                        ticket_id: ticket_id!,
+                        tag_key_id: tagKey.id,
+                        value: date
+                    })
                     break
                 }
                 case 'number': {
-                    const existing = existingValues.number.get(tagKey.id)
                     const number = parseFloat(value)
                     if (isNaN(number)) {
                         setError('Invalid number value')
                         return
                     }
-                    if (existing) {
-                        await updateTicketTagNumberValue(existing.id, {
-                            value: number.toString()
-                        })
-                    } else {
-                        await createTicketTagNumberValue({
-                            id: crypto.randomUUID(),
-                            ticket_id: ticket_id!,
-                            tag_key_id: tagKey.id,
-                            value: number.toString()
-                        })
-                    }
+                    await createTicketTagNumberValue({
+                        id: crypto.randomUUID(),
+                        ticket_id: ticket_id!,
+                        tag_key_id: tagKey.id,
+                        value: number.toString()
+                    })
                     break
                 }
                 case 'text': {
-                    const existing = existingValues.text.get(tagKey.id)
-                    if (existing) {
-                        await updateTicketTagTextValue(existing.id, {
-                            value
-                        })
-                    } else {
-                        await createTicketTagTextValue({
-                            id: crypto.randomUUID(),
-                            ticket_id: ticket_id!,
-                            tag_key_id: tagKey.id,
-                            value
-                        })
-                    }
+                    await createTicketTagTextValue({
+                        id: crypto.randomUUID(),
+                        ticket_id: ticket_id!,
+                        tag_key_id: tagKey.id,
+                        value
+                    })
                     break
                 }
             }
             setIsAddingTagValue(false)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : `Failed to add tag`)
+        } finally {
+            setIsUpdatingTags(false)
+        }
+    }
+
+    const handleUpdateTag = async (tagKey: TicketTagKey, valueId: string) => {
+        if (!ticket || !canEdit) return
+
+        try {
+            setIsUpdatingTags(true)
+            setError(null)
+
+            const value = editedValues[tagKey.tag_type].get(tagKey.id)
+            if (!value) return
+
+            const existingValues = tagData?.values
+            if (!existingValues) return
+
+            // Update existing value based on tag type
+            switch (tagKey.tag_type) {
+                case 'date': {
+                    const date = parseYMDDateString(value)
+                    await updateTicketTagDateValue(valueId, {
+                        value: date
+                    })
+                    break
+                }
+                case 'number': {
+                    const number = parseFloat(value)
+                    if (isNaN(number)) {
+                        setError('Invalid number value')
+                        return
+                    }
+                    await updateTicketTagNumberValue(valueId, {
+                        // ts go away for now
+                        value: number as unknown as string
+                    })
+                    break
+                }
+                case 'text': {
+                    await updateTicketTagTextValue(valueId, {
+                        value
+                    })
+                    break
+                }
+            }
+
+            // Clear the edited value after successful update
+            const newEditedValues = { ...editedValues }
+            newEditedValues[tagKey.tag_type].delete(tagKey.id)
+            setEditedValues(newEditedValues)
+
         } catch (err) {
             setError(err instanceof Error ? err.message : `Failed to update tag`)
         } finally {
@@ -441,7 +483,7 @@ export default function Ticket() {
                                             {isAddingTagValue && (
                                                 <AddTagValue
                                                     tagKeys={getUnusedTagKeys()}
-                                                    onSubmit={handleUpdateTag}
+                                                    onSubmit={handleAddTag}
                                                     onCancel={() => setIsAddingTagValue(false)}
                                                     isSubmitting={isUpdatingTags}
                                                 />
@@ -450,6 +492,8 @@ export default function Ticket() {
                                             {Array.from(tagData.values.date.entries()).map(([tagKeyId, value]) => {
                                                 const tagKey = tagData.keys.find(k => k.id === tagKeyId)
                                                 if (!tagKey) return null
+                                                const isEdited = editedValues.date.has(tagKey.id)
+                                                const editedValue = editedValues.date.get(tagKey.id)
                                                 return (
                                                     <div key={tagKey.id} className="flex items-center gap-2">
                                                         <span className="text-sm text-gray-500 w-24 truncate" title={tagKey.name}>{tagKey.name}:</span>
@@ -458,10 +502,24 @@ export default function Ticket() {
                                                                 <Input
                                                                     type="date"
                                                                     className="w-[200px]"
-                                                                    value={value.value instanceof Date ? value.value.toISOString().split('T')[0] : new Date(value.value).toISOString().split('T')[0]}
-                                                                    onChange={(e) => handleUpdateTag(tagKey, e.target.value)}
+                                                                    value={editedValue || (value.value instanceof Date ? value.value.toISOString().split('T')[0] : new Date(value.value).toISOString().split('T')[0])}
+                                                                    onChange={(e) => {
+                                                                        const newEditedValues = { ...editedValues }
+                                                                        newEditedValues.date.set(tagKey.id, e.target.value)
+                                                                        setEditedValues(newEditedValues)
+                                                                    }}
                                                                     disabled={isUpdatingTags}
                                                                 />
+                                                                {isEdited && (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => handleUpdateTag(tagKey, value.id)}
+                                                                        disabled={isUpdatingTags}
+                                                                    >
+                                                                        Save
+                                                                    </Button>
+                                                                )}
                                                                 <Button
                                                                     variant="destructive"
                                                                     size="sm"
@@ -483,6 +541,8 @@ export default function Ticket() {
                                             {Array.from(tagData.values.number.entries()).map(([tagKeyId, value]) => {
                                                 const tagKey = tagData.keys.find(k => k.id === tagKeyId)
                                                 if (!tagKey) return null
+                                                const isEdited = editedValues.number.has(tagKey.id)
+                                                const editedValue = editedValues.number.get(tagKey.id)
                                                 return (
                                                     <div key={tagKey.id} className="flex items-center gap-2">
                                                         <span className="text-sm text-gray-500 w-24 truncate" title={tagKey.name}>{tagKey.name}:</span>
@@ -491,10 +551,24 @@ export default function Ticket() {
                                                                 <Input
                                                                     type="number"
                                                                     className="w-[200px]"
-                                                                    value={value.value}
-                                                                    onChange={(e) => handleUpdateTag(tagKey, e.target.value)}
+                                                                    value={editedValue || value.value}
+                                                                    onChange={(e) => {
+                                                                        const newEditedValues = { ...editedValues }
+                                                                        newEditedValues.number.set(tagKey.id, e.target.value)
+                                                                        setEditedValues(newEditedValues)
+                                                                    }}
                                                                     disabled={isUpdatingTags}
                                                                 />
+                                                                {isEdited && (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => handleUpdateTag(tagKey, value.id)}
+                                                                        disabled={isUpdatingTags}
+                                                                    >
+                                                                        Save
+                                                                    </Button>
+                                                                )}
                                                                 <Button
                                                                     variant="destructive"
                                                                     size="sm"
@@ -516,6 +590,8 @@ export default function Ticket() {
                                             {Array.from(tagData.values.text.entries()).map(([tagKeyId, value]) => {
                                                 const tagKey = tagData.keys.find(k => k.id === tagKeyId)
                                                 if (!tagKey) return null
+                                                const isEdited = editedValues.text.has(tagKey.id)
+                                                const editedValue = editedValues.text.get(tagKey.id)
                                                 return (
                                                     <div key={tagKey.id} className="flex items-center gap-2">
                                                         <span className="text-sm text-gray-500 w-24 truncate" title={tagKey.name}>{tagKey.name}:</span>
@@ -525,10 +601,14 @@ export default function Ticket() {
                                                                     <Input
                                                                         type="text"
                                                                         className="w-[200px]"
-                                                                        value={value.value}
-                                                                        onChange={(e) => handleUpdateTag(tagKey, e.target.value)}
+                                                                        value={editedValue || value.value}
+                                                                        onChange={(e) => {
+                                                                            const newEditedValues = { ...editedValues }
+                                                                            newEditedValues.text.set(tagKey.id, e.target.value)
+                                                                            setEditedValues(newEditedValues)
+                                                                        }}
                                                                         disabled={isUpdatingTags}
-                                                                        title={value.value}
+                                                                        title={editedValue || value.value}
                                                                         style={{
                                                                             textOverflow: 'ellipsis',
                                                                             whiteSpace: 'nowrap',
@@ -536,6 +616,16 @@ export default function Ticket() {
                                                                         }}
                                                                     />
                                                                 </div>
+                                                                {isEdited && (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => handleUpdateTag(tagKey, value.id)}
+                                                                        disabled={isUpdatingTags}
+                                                                    >
+                                                                        Save
+                                                                    </Button>
+                                                                )}
                                                                 <Button
                                                                     variant="destructive"
                                                                     size="sm"

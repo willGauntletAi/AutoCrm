@@ -8,11 +8,13 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import CreateMacroDialog from '../components/CreateMacroDialog';
 import { deleteMacro } from '../lib/mutations';
+import { CreateTagDialog } from '@/components/CreateTagDialog';
 
 export default function AdminPage() {
     const { organization_id } = useParams<{ organization_id: string }>();
     const { user } = useAuth();
     const [isCreateMacroOpen, setIsCreateMacroOpen] = useState(false);
+    const [isCreateTagOpen, setIsCreateTagOpen] = useState(false);
 
     // Check if user is admin
     const userRole = useLiveQuery(
@@ -37,6 +39,20 @@ export default function AdminPage() {
                 .where('organization_id')
                 .equals(organization_id)
                 .filter(macro => !macro.deleted_at)
+                .toArray();
+        },
+        [organization_id],
+        []
+    );
+
+    // Fetch tags for this organization
+    const tags = useLiveQuery(
+        async () => {
+            if (!organization_id) return [];
+            return await db.ticketTagKeys
+                .where('organization_id')
+                .equals(organization_id)
+                .filter(tag => !tag.deleted_at)
                 .toArray();
         },
         [organization_id],
@@ -84,12 +100,49 @@ export default function AdminPage() {
                         <CardHeader>
                             <div className="flex justify-between items-center">
                                 <CardTitle>Tag Management</CardTitle>
+                                <CreateTagDialog
+                                    organizationId={organization_id}
+                                    open={isCreateTagOpen}
+                                    onOpenChange={setIsCreateTagOpen}
+                                />
+                                <Button
+                                    size="sm"
+                                    className="flex items-center gap-2"
+                                    onClick={() => setIsCreateTagOpen(true)}
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Create Tag
+                                </Button>
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-sm text-gray-500">
-                                Manage ticket tags and their configurations.
-                            </p>
+                            <div className="space-y-4">
+                                {tags.length === 0 ? (
+                                    <p className="text-sm text-gray-500">
+                                        No tags created yet. Create your first tag to help categorize tickets.
+                                    </p>
+                                ) : (
+                                    <div className="divide-y">
+                                        {tags.map((tag) => (
+                                            <div key={tag.id} className="py-4 first:pt-0 last:pb-0">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h3 className="font-medium">{tag.name}</h3>
+                                                        {tag.description && (
+                                                            <p className="text-sm text-gray-500 mt-1">
+                                                                {tag.description}
+                                                            </p>
+                                                        )}
+                                                        <p className="text-sm text-gray-400 mt-1">
+                                                            Type: {tag.tag_type}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
 

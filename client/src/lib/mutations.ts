@@ -636,9 +636,7 @@ export async function updateTicketTagNumberValue(id: string, data: Partial<Omit<
             ...data,
             updated_at: timestamp,
         };
-        if (typeof valueData.value === 'number') {
-            valueData.value = String(valueData.value);
-        }
+        //Definitely not actually typechecked. Figure it out later.
         await queueMutation({
             operation: 'update_ticket_tag_number_value',
             data: valueData as TicketTagNumberValue,
