@@ -118,8 +118,8 @@ export const MacroRequirementsSchema = z.object({
 export const MacroActionSchema = z.object({
     tag_keys_to_remove: z.array(z.string().uuid()),
     tags_to_modify: z.object({
-        date_tags: z.record(z.string().uuid(), z.string()),
-        number_tags: z.record(z.string().uuid(), z.string()),
+        date_tags: z.record(z.string().uuid(), z.number()),
+        number_tags: z.record(z.string().uuid(), z.number()),
         text_tags: z.record(z.string().uuid(), z.string())
     }),
     comment: z.string().optional(),

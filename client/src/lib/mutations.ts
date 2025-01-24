@@ -14,7 +14,8 @@ import {
     type TicketTagDateValueWithDate,
     type TicketTagNumberValue,
     type TicketTagTextValue,
-    type Mutation
+    type Mutation,
+    type Macro
 } from './db';
 import { formatDateTagValue } from './utils';
 
@@ -709,6 +710,60 @@ export async function deleteTicketTagTextValue(id: string): Promise<void> {
             data: { id },
         });
         await db.ticketTagTextValues.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
+    });
+    await syncToServer();
+}
+
+export async function createMacro(data: Omit<Macro, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const macroData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.macros], async () => {
+        await queueMutation({
+            operation: 'create_macro',
+            data: macroData,
+        });
+        await db.macros.put(macroData);
+    });
+    await syncToServer();
+}
+
+export async function updateMacro(id: string, data: Partial<Omit<Macro, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.macros], async () => {
+        const existing = await db.macros.get(id);
+        if (!existing) {
+            throw new Error(`Macro ${id} not found`);
+        }
+        const macroData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_macro',
+            data: macroData,
+        });
+        await db.macros.update(id, macroData);
+    });
+    await syncToServer();
+}
+
+export async function deleteMacro(id: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.macros], async () => {
+        await queueMutation({
+            operation: 'delete_macro',
+            data: { id },
+        });
+        await db.macros.update(id, {
             deleted_at: timestamp,
             updated_at: timestamp
         });

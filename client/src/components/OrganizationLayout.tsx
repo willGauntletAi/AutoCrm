@@ -9,6 +9,9 @@ import {
     SheetTitle,
     SheetTrigger,
 } from './ui/sheet'
+import { useAuth } from '../lib/auth'
+import { db } from '../lib/db'
+import { useLiveQuery } from 'dexie-react-hooks'
 
 const navItems = [
     { name: 'Dashboard', path: '' },
@@ -19,6 +22,27 @@ const navItems = [
 
 export default function OrganizationLayout() {
     const { organization_id } = useParams()
+    const { user } = useAuth()
+
+    const userRole = useLiveQuery(
+        async () => {
+            if (!user || !organization_id) return null
+            const member = await db.profileOrganizationMembers
+                .where(['organization_id', 'profile_id'])
+                .equals([organization_id, user.id])
+                .filter(member => !member.deleted_at)
+                .first()
+            return member?.role ?? null
+        },
+        [organization_id, user],
+        null
+    )
+
+    const isAdmin = userRole === 'admin'
+    const allNavItems = [
+        ...navItems,
+        ...(isAdmin ? [{ name: 'Admin', path: 'admin' }] : [])
+    ]
 
     return (
         <div className="flex h-screen">
@@ -28,7 +52,7 @@ export default function OrganizationLayout() {
                     <h2 className="text-lg font-semibold">Organization</h2>
                 </div>
                 <nav className="flex-1 space-y-1 px-4">
-                    {navItems.map((item) => (
+                    {allNavItems.map((item) => (
                         <Link
                             key={item.path}
                             to={`/${organization_id}/${item.path}`}
@@ -55,7 +79,7 @@ export default function OrganizationLayout() {
                         <SheetTitle>Organization</SheetTitle>
                     </SheetHeader>
                     <nav className="flex flex-col space-y-1 mt-4">
-                        {navItems.map((item) => (
+                        {allNavItems.map((item) => (
                             <Link
                                 key={item.path}
                                 to={`/${organization_id}/${item.path}`}

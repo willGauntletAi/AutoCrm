@@ -1,0 +1,165 @@
+import { useParams } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { db } from '../lib/db';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useAuth } from '../lib/auth';
+import { Button } from '../components/ui/button';
+import { Plus } from 'lucide-react';
+import { useState } from 'react';
+import CreateMacroDialog from '../components/CreateMacroDialog';
+import { deleteMacro } from '../lib/mutations';
+
+export default function AdminPage() {
+    const { organization_id } = useParams<{ organization_id: string }>();
+    const { user } = useAuth();
+    const [isCreateMacroOpen, setIsCreateMacroOpen] = useState(false);
+
+    // Check if user is admin
+    const userRole = useLiveQuery(
+        async () => {
+            if (!user || !organization_id) return null;
+            const member = await db.profileOrganizationMembers
+                .where(['organization_id', 'profile_id'])
+                .equals([organization_id, user.id])
+                .filter(member => !member.deleted_at)
+                .first();
+            return member?.role ?? null;
+        },
+        [organization_id, user],
+        null
+    );
+
+    // Fetch macros for this organization
+    const macros = useLiveQuery(
+        async () => {
+            if (!organization_id) return [];
+            return await db.macros
+                .where('organization_id')
+                .equals(organization_id)
+                .filter(macro => !macro.deleted_at)
+                .toArray();
+        },
+        [organization_id],
+        []
+    );
+
+    if (!organization_id) {
+        return (
+            <div className="min-h-screen p-4">
+                <div className="text-red-600">Organization ID is required</div>
+            </div>
+        );
+    }
+
+    if (userRole !== 'admin') {
+        return (
+            <div className="min-h-screen p-4">
+                <div className="text-red-600">You must be an admin to view this page</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen p-4">
+            <div className="max-w-4xl mx-auto">
+                <div className="mb-8">
+                    <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+                </div>
+
+                <div className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle>Organization Settings</CardTitle>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-gray-500">
+                                Configure organization-wide settings and permissions.
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle>Tag Management</CardTitle>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-gray-500">
+                                Manage ticket tags and their configurations.
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle>Macro Management</CardTitle>
+                                <CreateMacroDialog
+                                    organizationId={organization_id}
+                                    open={isCreateMacroOpen}
+                                    onOpenChange={setIsCreateMacroOpen}
+                                    trigger={
+                                        <Button
+                                            size="sm"
+                                            className="flex items-center gap-2"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Create Macro
+                                        </Button>
+                                    }
+                                />
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {macros.length === 0 ? (
+                                    <p className="text-sm text-gray-500">
+                                        No macros created yet. Create your first macro to automate ticket updates.
+                                    </p>
+                                ) : (
+                                    <div className="divide-y">
+                                        {macros.map((macro) => (
+                                            <div key={macro.id} className="py-4 first:pt-0 last:pb-0">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h3 className="font-medium">{macro.macro.name}</h3>
+                                                        {macro.macro.description && (
+                                                            <p className="text-sm text-gray-500 mt-1">
+                                                                {macro.macro.description}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <Button variant="outline" size="sm">
+                                                            Edit
+                                                        </Button>
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="sm"
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await deleteMacro(macro.id);
+                                                                } catch (error) {
+                                                                    console.error('Error deleting macro:', error);
+                                                                }
+                                                            }}
+                                                        >
+                                                            Delete
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        </div>
+    );
+} 
