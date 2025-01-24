@@ -329,6 +329,15 @@ export interface ExtensionsPgStatStatementsInfo {
   stats_reset: Timestamp | null;
 }
 
+export interface Macros {
+  created_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  macro: Json;
+  organization_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface NetHttpRequestQueue {
   body: Buffer | null;
   headers: Json;
@@ -680,6 +689,7 @@ export interface DB {
   "auth.users": AuthUsers;
   "extensions.pg_stat_statements": ExtensionsPgStatStatements;
   "extensions.pg_stat_statements_info": ExtensionsPgStatStatementsInfo;
+  macros: Macros;
   "net._http_response": NetHttpResponse;
   "net.http_request_queue": NetHttpRequestQueue;
   organization_invitations: OrganizationInvitations;

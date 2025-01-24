@@ -84,6 +84,59 @@ export const TicketTagTextValueSchema = z.object({
     value: z.string(),
 });
 
+// Macro Schemas
+export const MacroRequirementsSchema = z.object({
+    // Tag requirements
+    date_tag_requirements: z.record(z.string().uuid(), z.object({
+        before: z.number().optional(),
+        after: z.number().optional(),
+        equals: z.string().optional()
+    })),
+    number_tag_requirements: z.record(z.string().uuid(), z.object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+        equals: z.number().optional()
+    })),
+    text_tag_requirements: z.record(z.string().uuid(), z.object({
+        equals: z.string().optional(),
+        contains: z.string().optional(),
+        regex: z.string().optional()
+    })),
+    // Ticket field requirements
+    created_at: z.object({
+        before: z.number().optional(),
+        after: z.number().optional()
+    }).optional(),
+    updated_at: z.object({
+        before: z.number().optional(),
+        after: z.number().optional()
+    }).optional(),
+    status: z.string().optional(),
+    priority: z.string().optional()
+});
+
+export const MacroActionSchema = z.object({
+    tag_keys_to_remove: z.array(z.string().uuid()),
+    tags_to_modify: z.object({
+        date_tags: z.record(z.string().uuid(), z.string()),
+        number_tags: z.record(z.string().uuid(), z.string()),
+        text_tags: z.record(z.string().uuid(), z.string())
+    }),
+    comment: z.string().optional(),
+    new_status: z.string().optional(),
+    new_priority: z.string().optional()
+});
+
+export const MacroSchema = z.object({
+    id: z.string().uuid(),
+    organization_id: z.string().uuid(),
+    macro: z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        requirements: MacroRequirementsSchema,
+        actions: MacroActionSchema
+    })
+});
 
 // Define the sync operation schema using a discriminated union
 export const SyncOperationSchema = z.discriminatedUnion('operation', [
@@ -214,11 +267,25 @@ export const SyncOperationSchema = z.discriminatedUnion('operation', [
         operation: z.literal('delete_ticket_tag_text_value'),
         data: z.object({ id: z.string().uuid() })
     }),
+
+    // Macro operations
+    z.object({
+        operation: z.literal('create_macro'),
+        data: MacroSchema
+    }),
+    z.object({
+        operation: z.literal('update_macro'),
+        data: MacroSchema
+    }),
+    z.object({
+        operation: z.literal('delete_macro'),
+        data: z.object({ id: z.string().uuid() })
+    }),
 ]);
 
 export const SyncInputSchema = z.array(SyncOperationSchema);
 
 export type SyncInput = z.infer<typeof SyncInputSchema>;
 export type TableRow<T extends TableName> = Selectable<DB[T]>;
-export type TableName = keyof Pick<DB, 'profiles' | 'organizations' | 'profile_organization_members' | 'tickets' | 'ticket_comments' | 'organization_invitations' | 'ticket_tag_keys' | 'ticket_tag_date_values' | 'ticket_tag_number_values' | 'ticket_tag_text_values'>;
+export type TableName = keyof Pick<DB, 'profiles' | 'organizations' | 'profile_organization_members' | 'tickets' | 'ticket_comments' | 'organization_invitations' | 'ticket_tag_keys' | 'ticket_tag_date_values' | 'ticket_tag_number_values' | 'ticket_tag_text_values' | 'macros'>;
 

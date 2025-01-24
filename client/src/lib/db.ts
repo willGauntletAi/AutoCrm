@@ -11,6 +11,7 @@ import {
     TicketTagDateValueSchema as ServerTicketTagDateValueSchema,
     TicketTagNumberValueSchema as ServerTicketTagNumberValueSchema,
     TicketTagTextValueSchema as ServerTicketTagTextValueSchema,
+    MacroSchema as ServerMacroSchema,
     SyncOperationSchema,
 } from '../../../server/src/handlers/sync/schema';
 
@@ -32,6 +33,7 @@ export const TicketTagKeySchema = ServerTicketTagKeySchema.extend(TimestampField
 export const TicketTagDateValueSchema = ServerTicketTagDateValueSchema.extend(TimestampFieldsSchema.shape);
 export const TicketTagNumberValueSchema = ServerTicketTagNumberValueSchema.extend(TimestampFieldsSchema.shape);
 export const TicketTagTextValueSchema = ServerTicketTagTextValueSchema.extend(TimestampFieldsSchema.shape);
+export const MacroSchema = ServerMacroSchema.extend(TimestampFieldsSchema.shape);
 
 // Create a modified version of TicketTagNumberValueSchema with number value
 export const TicketTagNumberValueWithNumberSchema = z.object({
@@ -83,6 +85,7 @@ export type TicketTagDateValue = z.infer<typeof TicketTagDateValueSchema>;
 export type TicketTagNumberValueWithNumber = z.infer<typeof TicketTagNumberValueWithNumberSchema>;
 export type TicketTagNumberValue = z.infer<typeof TicketTagNumberValueSchema>;
 export type TicketTagTextValue = z.infer<typeof TicketTagTextValueSchema>;
+export type Macro = z.infer<typeof MacroSchema>;
 
 // Define database class
 export class AutoCRMDatabase extends Dexie {
@@ -98,6 +101,7 @@ export class AutoCRMDatabase extends Dexie {
     ticketTagDateValues!: Table<TicketTagDateValueWithDate>;
     ticketTagNumberValues!: Table<TicketTagNumberValueWithNumber>;
     ticketTagTextValues!: Table<TicketTagTextValue>;
+    macros!: Table<Macro>;
 
     constructor() {
         super('auto-crm');
@@ -114,6 +118,7 @@ export class AutoCRMDatabase extends Dexie {
             ticketTagDateValues: '&id, ticket_id, tag_key_id, value, created_at, updated_at',
             ticketTagNumberValues: '&id, ticket_id, tag_key_id, value, created_at, updated_at',
             ticketTagTextValues: '&id, ticket_id, tag_key_id, value, created_at, updated_at',
+            macros: '&id, organization_id, created_at, updated_at',
         });
 
         // Add hooks to validate data
@@ -199,6 +204,13 @@ export class AutoCRMDatabase extends Dexie {
         });
         this.ticketTagTextValues.hook('updating', (mods) => {
             TicketTagTextValueSchema.partial().parse(mods);
+        });
+
+        this.macros.hook('creating', (_, obj) => {
+            MacroSchema.parse(obj);
+        });
+        this.macros.hook('updating', (mods) => {
+            MacroSchema.partial().parse(mods);
         });
     }
 }

@@ -5,6 +5,7 @@ import { AuthUser } from '../../utils/auth';
 import { createTextTagValue, deleteTextTagValue, updateTextTagValue } from './textTagValue';
 import { createNumberTagValue, deleteNumberTagValue, updateNumberTagValue } from './numberTagValue';
 import { createDateTagValue, deleteDateTagValue, updateDateTagValue } from './dateTagValue';
+import { createMacro, deleteMacro, updateMacro } from './macros';
 
 interface Context {
     user: AuthUser,
@@ -26,6 +27,7 @@ interface SyncResponse {
     ticket_tag_date_values?: TableRow<'ticket_tag_date_values'>[];
     ticket_tag_number_values?: TableRow<'ticket_tag_number_values'>[];
     ticket_tag_text_values?: TableRow<'ticket_tag_text_values'>[];
+    macros?: TableRow<'macros'>[];
 }
 
 // Profile operations
@@ -864,24 +866,28 @@ async function deleteTicketTagKey(data: z.infer<typeof SyncInputSchema>[number] 
 // Tag Value operations
 
 export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncResponse> {
-    const results: SyncResponse = {};
+    const response: SyncResponse = {};
+    const userId = ctx.user.id;
+
+    // Get user's organization memberships
+    const memberships = ctx.user.organizations;
 
     for (const operation of operations) {
         switch (operation.operation) {
             // Profile operations
             case 'create_profile': {
-                const result = await createProfile(operation, ctx.user.id);
+                const result = await createProfile(operation, userId);
                 if (result) {
-                    if (!results.profiles) results.profiles = [];
-                    results.profiles.push(result);
+                    if (!response.profiles) response.profiles = [];
+                    response.profiles.push(result);
                 }
                 break;
             }
             case 'update_profile': {
-                const result = await updateProfile(operation, ctx.user.id);
+                const result = await updateProfile(operation, userId);
                 if (result) {
-                    if (!results.profiles) results.profiles = [];
-                    results.profiles.push(result);
+                    if (!response.profiles) response.profiles = [];
+                    response.profiles.push(result);
                 }
                 break;
             }
@@ -890,24 +896,24 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
             case 'create_organization': {
                 const result = await createOrganization(operation);
                 if (result) {
-                    if (!results.organizations) results.organizations = [];
-                    results.organizations.push(result);
+                    if (!response.organizations) response.organizations = [];
+                    response.organizations.push(result);
                 }
                 break;
             }
             case 'update_organization': {
                 const result = await updateOrganization(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.organizations) results.organizations = [];
-                    results.organizations.push(result);
+                    if (!response.organizations) response.organizations = [];
+                    response.organizations.push(result);
                 }
                 break;
             }
             case 'delete_organization': {
                 const result = await deleteOrganization(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.organizations) results.organizations = [];
-                    results.organizations.push(result);
+                    if (!response.organizations) response.organizations = [];
+                    response.organizations.push(result);
                 }
                 break;
             }
@@ -916,24 +922,24 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
             case 'create_profile_organization_member': {
                 const result = await createProfileOrganizationMember(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.profile_organization_members) results.profile_organization_members = [];
-                    results.profile_organization_members.push(result);
+                    if (!response.profile_organization_members) response.profile_organization_members = [];
+                    response.profile_organization_members.push(result);
                 }
                 break;
             }
             case 'update_profile_organization_member': {
                 const result = await updateProfileOrganizationMember(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.profile_organization_members) results.profile_organization_members = [];
-                    results.profile_organization_members.push(result);
+                    if (!response.profile_organization_members) response.profile_organization_members = [];
+                    response.profile_organization_members.push(result);
                 }
                 break;
             }
             case 'delete_profile_organization_member': {
                 const result = await deleteProfileOrganizationMember(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.profile_organization_members) results.profile_organization_members = [];
-                    results.profile_organization_members.push(result);
+                    if (!response.profile_organization_members) response.profile_organization_members = [];
+                    response.profile_organization_members.push(result);
                 }
                 break;
             }
@@ -942,24 +948,24 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
             case 'create_ticket': {
                 const result = await createTicket(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.tickets) results.tickets = [];
-                    results.tickets.push(result);
+                    if (!response.tickets) response.tickets = [];
+                    response.tickets.push(result);
                 }
                 break;
             }
             case 'update_ticket': {
-                const result = await updateTicket(operation, ctx.user.organizations, ctx.user.id);
+                const result = await updateTicket(operation, ctx.user.organizations, userId);
                 if (result) {
-                    if (!results.tickets) results.tickets = [];
-                    results.tickets.push(result);
+                    if (!response.tickets) response.tickets = [];
+                    response.tickets.push(result);
                 }
                 break;
             }
             case 'delete_ticket': {
-                const result = await deleteTicket(operation, ctx.user.organizations, ctx.user.id);
+                const result = await deleteTicket(operation, ctx.user.organizations, userId);
                 if (result) {
-                    if (!results.tickets) results.tickets = [];
-                    results.tickets.push(result);
+                    if (!response.tickets) response.tickets = [];
+                    response.tickets.push(result);
                 }
                 break;
             }
@@ -968,16 +974,16 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
             case 'create_ticket_comment': {
                 const result = await createTicketComment(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_comments) results.ticket_comments = [];
-                    results.ticket_comments.push(result);
+                    if (!response.ticket_comments) response.ticket_comments = [];
+                    response.ticket_comments.push(result);
                 }
                 break;
             }
             case 'delete_ticket_comment': {
-                const result = await deleteTicketComment(operation, ctx.user.id);
+                const result = await deleteTicketComment(operation, userId);
                 if (result) {
-                    if (!results.ticket_comments) results.ticket_comments = [];
-                    results.ticket_comments.push(result);
+                    if (!response.ticket_comments) response.ticket_comments = [];
+                    response.ticket_comments.push(result);
                 }
                 break;
             }
@@ -986,24 +992,24 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
             case 'create_organization_invitation': {
                 const result = await createOrganizationInvitation(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.organization_invitations) results.organization_invitations = [];
-                    results.organization_invitations.push(result);
+                    if (!response.organization_invitations) response.organization_invitations = [];
+                    response.organization_invitations.push(result);
                 }
                 break;
             }
             case 'update_organization_invitation': {
                 const result = await updateOrganizationInvitation(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.organization_invitations) results.organization_invitations = [];
-                    results.organization_invitations.push(result);
+                    if (!response.organization_invitations) response.organization_invitations = [];
+                    response.organization_invitations.push(result);
                 }
                 break;
             }
             case 'delete_organization_invitation': {
                 const result = await deleteOrganizationInvitation(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.organization_invitations) results.organization_invitations = [];
-                    results.organization_invitations.push(result);
+                    if (!response.organization_invitations) response.organization_invitations = [];
+                    response.organization_invitations.push(result);
                 }
                 break;
             }
@@ -1012,24 +1018,24 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
             case 'create_ticket_tag_key': {
                 const result = await createTicketTagKey(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_keys) results.ticket_tag_keys = [];
-                    results.ticket_tag_keys.push(result);
+                    if (!response.ticket_tag_keys) response.ticket_tag_keys = [];
+                    response.ticket_tag_keys.push(result);
                 }
                 break;
             }
             case 'update_ticket_tag_key': {
                 const result = await updateTicketTagKey(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_keys) results.ticket_tag_keys = [];
-                    results.ticket_tag_keys.push(result);
+                    if (!response.ticket_tag_keys) response.ticket_tag_keys = [];
+                    response.ticket_tag_keys.push(result);
                 }
                 break;
             }
             case 'delete_ticket_tag_key': {
                 const result = await deleteTicketTagKey(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_keys) results.ticket_tag_keys = [];
-                    results.ticket_tag_keys.push(result);
+                    if (!response.ticket_tag_keys) response.ticket_tag_keys = [];
+                    response.ticket_tag_keys.push(result);
                 }
                 break;
             }
@@ -1038,24 +1044,24 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
             case 'create_ticket_tag_date_value': {
                 const result = await createDateTagValue(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_date_values) results.ticket_tag_date_values = [];
-                    results.ticket_tag_date_values.push(result);
+                    if (!response.ticket_tag_date_values) response.ticket_tag_date_values = [];
+                    response.ticket_tag_date_values.push(result);
                 }
                 break;
             }
             case 'update_ticket_tag_date_value': {
                 const result = await updateDateTagValue(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_date_values) results.ticket_tag_date_values = [];
-                    results.ticket_tag_date_values.push(result);
+                    if (!response.ticket_tag_date_values) response.ticket_tag_date_values = [];
+                    response.ticket_tag_date_values.push(result);
                 }
                 break;
             }
             case 'delete_ticket_tag_date_value': {
                 const result = await deleteDateTagValue(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_date_values) results.ticket_tag_date_values = [];
-                    results.ticket_tag_date_values.push(result);
+                    if (!response.ticket_tag_date_values) response.ticket_tag_date_values = [];
+                    response.ticket_tag_date_values.push(result);
                 }
                 break;
             }
@@ -1063,24 +1069,24 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
             case 'create_ticket_tag_number_value': {
                 const result = await createNumberTagValue(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_number_values) results.ticket_tag_number_values = [];
-                    results.ticket_tag_number_values.push(result);
+                    if (!response.ticket_tag_number_values) response.ticket_tag_number_values = [];
+                    response.ticket_tag_number_values.push(result);
                 }
                 break;
             }
             case 'update_ticket_tag_number_value': {
                 const result = await updateNumberTagValue(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_number_values) results.ticket_tag_number_values = [];
-                    results.ticket_tag_number_values.push(result);
+                    if (!response.ticket_tag_number_values) response.ticket_tag_number_values = [];
+                    response.ticket_tag_number_values.push(result);
                 }
                 break;
             }
             case 'delete_ticket_tag_number_value': {
                 const result = await deleteNumberTagValue(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_number_values) results.ticket_tag_number_values = [];
-                    results.ticket_tag_number_values.push(result);
+                    if (!response.ticket_tag_number_values) response.ticket_tag_number_values = [];
+                    response.ticket_tag_number_values.push(result);
                 }
                 break;
             }
@@ -1088,29 +1094,54 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
             case 'create_ticket_tag_text_value': {
                 const result = await createTextTagValue(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_text_values) results.ticket_tag_text_values = [];
-                    results.ticket_tag_text_values.push(result);
+                    if (!response.ticket_tag_text_values) response.ticket_tag_text_values = [];
+                    response.ticket_tag_text_values.push(result);
                 }
                 break;
             }
             case 'update_ticket_tag_text_value': {
                 const result = await updateTextTagValue(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_text_values) results.ticket_tag_text_values = [];
-                    results.ticket_tag_text_values.push(result);
+                    if (!response.ticket_tag_text_values) response.ticket_tag_text_values = [];
+                    response.ticket_tag_text_values.push(result);
                 }
                 break;
             }
             case 'delete_ticket_tag_text_value': {
                 const result = await deleteTextTagValue(operation, ctx.user.organizations);
                 if (result) {
-                    if (!results.ticket_tag_text_values) results.ticket_tag_text_values = [];
-                    results.ticket_tag_text_values.push(result);
+                    if (!response.ticket_tag_text_values) response.ticket_tag_text_values = [];
+                    response.ticket_tag_text_values.push(result);
+                }
+                break;
+            }
+
+            case 'create_macro': {
+                const result = await createMacro(operation, memberships);
+                if (result) {
+                    response.macros = response.macros || [];
+                    response.macros.push(result);
+                }
+                break;
+            }
+            case 'update_macro': {
+                const result = await updateMacro(operation, memberships);
+                if (result) {
+                    response.macros = response.macros || [];
+                    response.macros.push(result);
+                }
+                break;
+            }
+            case 'delete_macro': {
+                const result = await deleteMacro(operation, memberships);
+                if (result) {
+                    response.macros = response.macros || [];
+                    response.macros.push(result);
                 }
                 break;
             }
         }
     }
 
-    return results;
+    return response;
 } 
