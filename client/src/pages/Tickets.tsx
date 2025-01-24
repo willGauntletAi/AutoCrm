@@ -9,9 +9,8 @@ import { createTicket } from '../lib/mutations'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '@/lib/auth'
 import type { TicketTagKey } from '../lib/db'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TagFilter } from '../components/TagFilter'
+import { formatDateTagValue, formatDateTime } from '@/lib/utils'
 
 type TagFilter = {
     tagKeyId: string;
@@ -350,12 +349,7 @@ export default function Tickets() {
                                                         // Format the date while preserving timezone information
                                                         const date = new Date(dateStr);
                                                         console.log('Formatting ticket date tag:', { tagKey, dateStr, parsedDate: date })
-                                                        value = date.toLocaleString(undefined, {
-                                                            year: 'numeric',
-                                                            month: 'short',
-                                                            day: 'numeric',
-                                                            timeZoneName: 'short'
-                                                        });
+                                                        value = formatDateTagValue(date);
                                                     }
                                                     break;
                                                 }
@@ -379,9 +373,9 @@ export default function Tickets() {
                                         })}
                                     </div>
                                     <div className="text-sm text-gray-500">
-                                        <p>Created {new Date(ticket.created_at || '').toLocaleDateString()}</p>
+                                        <p>Created {formatDateTime(ticket.created_at || '')}</p>
                                         {ticket.updated_at && (
-                                            <p>Updated {new Date(ticket.updated_at).toLocaleDateString()}</p>
+                                            <p>Updated {formatDateTime(ticket.updated_at)}</p>
                                         )}
                                     </div>
                                 </CardContent>

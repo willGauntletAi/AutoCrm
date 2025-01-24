@@ -43,6 +43,15 @@ export const TicketTagNumberValueWithNumberSchema = z.object({
     updated_at: z.string().nullable(),
     deleted_at: z.string().nullable(),
 });
+export const TicketTagDateValueWithDateSchema = z.object({
+    id: z.string().uuid(),
+    ticket_id: z.string().uuid(),
+    tag_key_id: z.string().uuid(),
+    value: z.date(),
+    created_at: z.string().nullable(),
+    updated_at: z.string().nullable(),
+    deleted_at: z.string().nullable(),
+});
 
 export const SystemMetadataSchema = z.object({
     key: z.string(),
@@ -69,6 +78,7 @@ export type SystemMetadata = z.infer<typeof SystemMetadataSchema>;
 export type Mutation = z.infer<typeof MutationSchema>;
 export type OrganizationInvitation = z.infer<typeof OrganizationInvitationSchema>;
 export type TicketTagKey = z.infer<typeof TicketTagKeySchema>;
+export type TicketTagDateValueWithDate = z.infer<typeof TicketTagDateValueWithDateSchema>;
 export type TicketTagDateValue = z.infer<typeof TicketTagDateValueSchema>;
 export type TicketTagNumberValueWithNumber = z.infer<typeof TicketTagNumberValueWithNumberSchema>;
 export type TicketTagNumberValue = z.infer<typeof TicketTagNumberValueSchema>;
@@ -85,7 +95,7 @@ export class AutoCRMDatabase extends Dexie {
     mutations!: Table<Mutation>;
     organizationInvitations!: Table<OrganizationInvitation>;
     ticketTagKeys!: Table<TicketTagKey>;
-    ticketTagDateValues!: Table<TicketTagDateValue>;
+    ticketTagDateValues!: Table<TicketTagDateValueWithDate>;
     ticketTagNumberValues!: Table<TicketTagNumberValueWithNumber>;
     ticketTagTextValues!: Table<TicketTagTextValue>;
 
@@ -171,10 +181,10 @@ export class AutoCRMDatabase extends Dexie {
         });
 
         this.ticketTagDateValues.hook('creating', (_, obj) => {
-            TicketTagDateValueSchema.parse(obj);
+            TicketTagDateValueWithDateSchema.parse(obj);
         });
         this.ticketTagDateValues.hook('updating', (mods) => {
-            TicketTagDateValueSchema.partial().parse(mods);
+            TicketTagDateValueWithDateSchema.partial().parse(mods);
         });
 
         this.ticketTagNumberValues.hook('creating', (_, obj) => {

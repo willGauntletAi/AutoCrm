@@ -90,7 +90,7 @@ export async function createDateTagValue(data: z.infer<typeof SyncInputSchema>[n
             id: data.data.id,
             ticket_id: data.data.ticket_id,
             tag_key_id: data.data.tag_key_id,
-            value: data.data.value,
+            value: new Date(data.data.value),
             created_at: now,
             updated_at: now,
             deleted_at: now,

@@ -32,6 +32,7 @@ import type { TicketTagKey } from '../lib/db'
 import { CreateTagDialog } from '../components/CreateTagDialog'
 import { AddTagValue } from '../components/AddTagValue'
 import { Plus } from 'lucide-react'
+import { formatDateTagValue, formatDateTime, parseYMDDateString } from '@/lib/utils'
 
 const TICKET_STATUS_OPTIONS = ['open', 'in_progress', 'closed'] as const
 const TICKET_PRIORITY_OPTIONS = ['low', 'medium', 'high'] as const
@@ -183,15 +184,6 @@ export default function Ticket() {
         }
     }
     const handleUpdateTag = async (tagKey: TicketTagKey, value: string) => {
-        const parseYMDDateString = (dateString: string) => {
-            // Example accepted format: "2023-10-08"
-            const [year, month, day] = dateString.split("-");
-            return new Date(
-                Number(year),
-                Number(month) - 1, // JavaScript months are zero-indexed
-                Number(day)
-            );
-        }
         if (!ticket || !canEdit) return
 
         try {
@@ -470,7 +462,7 @@ export default function Ticket() {
                                                     </div>
                                                 ) : (
                                                     <Badge variant="secondary">
-                                                        {value.value instanceof Date ? value.value.toLocaleDateString() : new Date(value.value).toLocaleDateString()}
+                                                        {formatDateTagValue(value.value)}
                                                     </Badge>
                                                 )}
                                             </div>
@@ -559,9 +551,9 @@ export default function Ticket() {
                                 </div>
                             </div>
                             <div className="text-sm text-gray-500">
-                                <p>Created {new Date(ticket.created_at || '').toLocaleDateString()}</p>
+                                <p>Created {formatDateTime(ticket.created_at || '')}</p>
                                 {ticket.updated_at && (
-                                    <p>Updated {new Date(ticket.updated_at).toLocaleDateString()}</p>
+                                    <p>Updated {formatDateTime(ticket.updated_at)}</p>
                                 )}
                             </div>
                         </CardContent>

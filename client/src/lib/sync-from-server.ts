@@ -1,8 +1,9 @@
 import Dexie from 'dexie';
 import { db } from './db';
 import { supabase } from './supabase';
-import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation, TicketTagKey, TicketTagDateValue, TicketTagNumberValueWithNumber, TicketTagTextValue } from './db';
+import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation, TicketTagKey, TicketTagNumberValueWithNumber, TicketTagTextValue, TicketTagDateValueWithDate, TicketTagDateValue } from './db';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { parseYMDDateString } from './utils';
 
 export const CURRENT_USER_KEY = 'currentUserId';
 export const IS_INITIALIZED_KEY = 'isInitialized';
@@ -207,7 +208,7 @@ export async function syncFromServer() {
                 await db.ticketTagKeys.bulkPut(tagKeys as TicketTagKey[]);
             }
             if (tagDateValues?.length) {
-                await db.ticketTagDateValues.bulkPut(tagDateValues.map(t => ({ ...t, value: new Date(t.value) })) as TicketTagDateValue[]);
+                await db.ticketTagDateValues.bulkPut(tagDateValues.map(t => ({ ...t, value: new Date(t.value) })) as TicketTagDateValueWithDate[]);
             }
             if (tagNumberValues?.length) {
                 await db.ticketTagNumberValues.bulkPut(tagNumberValues as TicketTagNumberValueWithNumber[]);
@@ -414,7 +415,7 @@ function setupRealtimeSync() {
             if (payload.eventType === 'DELETE') {
                 await db.ticketTagDateValues.delete(payload.old.id);
             } else {
-                const newDateValue = { ...payload.new, value: new Date(payload.new.value) };
+                const newDateValue = { ...payload.new, value: parseYMDDateString(payload.new.value) };
                 await db.ticketTagDateValues.put(newDateValue);
             }
         })

@@ -11,11 +11,12 @@ import {
     type TicketComment,
     type OrganizationInvitation,
     type TicketTagKey,
-    type TicketTagDateValue,
+    type TicketTagDateValueWithDate,
     type TicketTagNumberValue,
     type TicketTagTextValue,
     type Mutation
 } from './db';
+import { formatDateTagValue } from './utils';
 
 
 export type Operation = z.infer<typeof MutationOperationSchema>;
@@ -547,7 +548,7 @@ export async function deleteTicketTagKey(id: string): Promise<void> {
 }
 
 // Tag Value operations
-export async function createTicketTagDateValue(data: Omit<TicketTagDateValue, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+export async function createTicketTagDateValue(data: Omit<TicketTagDateValueWithDate, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
     const timestamp = new Date().toISOString();
     console.log('Creating ticket tag date value:', { data, timestamp })
     const valueData = {
@@ -559,14 +560,14 @@ export async function createTicketTagDateValue(data: Omit<TicketTagDateValue, 'c
     await db.transaction('rw', [db.mutations, db.ticketTagDateValues], async () => {
         await queueMutation({
             operation: 'create_ticket_tag_date_value',
-            data: valueData,
+            data: { ...valueData, value: formatDateTagValue(valueData.value) },
         });
         await db.ticketTagDateValues.put(valueData);
     });
     await syncToServer();
 }
 
-export async function updateTicketTagDateValue(id: string, data: Partial<Omit<TicketTagDateValue, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+export async function updateTicketTagDateValue(id: string, data: Partial<Omit<TicketTagDateValueWithDate, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
     const timestamp = new Date().toISOString();
     console.log('Updating ticket tag date value:', { id, data, timestamp })
     await db.transaction('rw', [db.mutations, db.ticketTagDateValues], async () => {
@@ -581,7 +582,7 @@ export async function updateTicketTagDateValue(id: string, data: Partial<Omit<Ti
         };
         await queueMutation({
             operation: 'update_ticket_tag_date_value',
-            data: valueData,
+            data: { ...valueData, value: formatDateTagValue(valueData.value) },
         });
         await db.ticketTagDateValues.update(id, valueData);
     });
