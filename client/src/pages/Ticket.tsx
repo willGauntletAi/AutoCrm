@@ -69,12 +69,12 @@ export default function Ticket() {
 
     const comments = useLiveQuery(
         async () => {
-            const ticketComments = await db.ticketComments
+            const ticketComments = (await db.ticketComments
                 .where('ticket_id')
                 .equals(ticket_id!)
                 .filter(comment => !comment.deleted_at)
+                .sortBy('created_at'))
                 .reverse()
-                .toArray()
 
             // Fetch user info for each comment
             const userIds = [...new Set(ticketComments.map(comment => comment.user_id))]
