@@ -99,9 +99,9 @@ export default function OrganizationMembers({ organizationId }: OrganizationMemb
                                 <div className="flex gap-2">
                                     <Button
                                         variant="outline"
-                                        onClick={() => handleUpdateRole(member.id, member.role === 'admin' ? 'member' : 'admin')}
+                                        onClick={() => handleUpdateRole(member.id, member.role === 'admin' ? 'worker' : 'admin')}
                                     >
-                                        {member.role === 'admin' ? 'Make Member' : 'Make Admin'}
+                                        {member.role === 'admin' ? 'Make Worker' : 'Make Admin'}
                                     </Button>
                                     <Button
                                         variant="destructive"

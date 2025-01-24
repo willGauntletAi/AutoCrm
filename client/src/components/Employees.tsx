@@ -16,7 +16,7 @@ interface EmployeesProps {
 export default function Employees({ organizationId }: EmployeesProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [email, setEmail] = useState('');
-    const [role, setRole] = useState<'admin' | 'member'>('member');
+    const [role, setRole] = useState<'admin' | 'worker'>('worker');
     const [error, setError] = useState<string | null>(null);
     const [isInviting, setIsInviting] = useState(false);
 
@@ -75,7 +75,7 @@ export default function Employees({ organizationId }: EmployeesProps) {
             });
             setIsDialogOpen(false);
             setEmail('');
-            setRole('member');
+            setRole('worker');
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to send invitation');
         } finally {
@@ -147,12 +147,12 @@ export default function Employees({ organizationId }: EmployeesProps) {
                                     <label htmlFor="role" className="text-sm font-medium">
                                         Role
                                     </label>
-                                    <Select value={role} onValueChange={(value: 'admin' | 'member') => setRole(value)}>
+                                    <Select value={role} onValueChange={(value: 'admin' | 'worker') => setRole(value)}>
                                         <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="member">Member</SelectItem>
+                                            <SelectItem value="worker">Worker</SelectItem>
                                             <SelectItem value="admin">Admin</SelectItem>
                                         </SelectContent>
                                     </Select>
