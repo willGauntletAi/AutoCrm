@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { useParams, Link } from 'react-router-dom'
@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth'
 import type { TicketTagKey } from '../lib/db'
 import { TagFilter } from '../components/TagFilter'
 import { formatDateTagValue, formatDateTime } from '@/lib/utils'
+import { useVirtualizer } from '@tanstack/react-virtual'
 
 type TagFilter = {
     tagKeyId: string;
@@ -25,6 +26,7 @@ export default function Tickets() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [tagFilters, setTagFilters] = useState<TagFilter[]>([])
     const { user } = useAuth()
+    const parentRef = useRef<HTMLDivElement>(null)
 
     const tickets = useLiveQuery(
         async () => {
@@ -209,6 +211,13 @@ export default function Tickets() {
         { tickets: [], tagKeys: [] }
     )
 
+    const rowVirtualizer = useVirtualizer({
+        count: tickets.tickets.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => 200, // Estimated height of each ticket card in pixels
+        overscan: 5, // Number of items to render outside of the visible area
+    })
+
     const handleCreateTicket = async (data: { title: string; description: string; priority: 'high' | 'low' | 'medium' }) => {
         if (!user) return
 
@@ -317,71 +326,97 @@ export default function Tickets() {
                         </Button>
                     </div>
 
-                    {tickets.tickets.map((ticket) => (
-                        <Link key={ticket.id} to={`/${organization_id}/tickets/${ticket.id}`}>
-                            <Card className="hover:shadow-md transition-shadow">
-                                <CardHeader>
-                                    <div className="flex justify-between items-start">
-                                        <CardTitle>{ticket.title}</CardTitle>
-                                        <div className="flex gap-2">
-                                            <Badge className={getPriorityColor(ticket.priority)}>
-                                                {ticket.priority}
-                                            </Badge>
-                                            <Badge className={getStatusColor(ticket.status)}>
-                                                {ticket.status}
-                                            </Badge>
-                                        </div>
+                    <div
+                        ref={parentRef}
+                        className="h-[calc(100vh-300px)] overflow-auto"
+                    >
+                        <div
+                            style={{
+                                height: `${rowVirtualizer.getTotalSize()}px`,
+                                width: '100%',
+                                position: 'relative',
+                            }}
+                        >
+                            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                const ticket = tickets.tickets[virtualRow.index]
+                                return (
+                                    <div
+                                        key={ticket.id}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            height: `${virtualRow.size}px`,
+                                            transform: `translateY(${virtualRow.start}px)`,
+                                        }}
+                                    >
+                                        <Link to={`/${organization_id}/tickets/${ticket.id}`}>
+                                            <Card className="hover:shadow-md transition-shadow h-[180px] mb-4">
+                                                <CardHeader>
+                                                    <div className="flex justify-between items-start">
+                                                        <CardTitle>{ticket.title}</CardTitle>
+                                                        <div className="flex gap-2">
+                                                            <Badge className={getPriorityColor(ticket.priority)}>
+                                                                {ticket.priority}
+                                                            </Badge>
+                                                            <Badge className={getStatusColor(ticket.status)}>
+                                                                {ticket.status}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                </CardHeader>
+                                                <CardContent>
+                                                    {ticket.description && (
+                                                        <p className="text-gray-600 mb-4 line-clamp-2">
+                                                            {ticket.description}
+                                                        </p>
+                                                    )}
+                                                    <div className="flex flex-wrap gap-2 mb-4">
+                                                        {ticket.tags.keys.map((tagKey: TicketTagKey) => {
+                                                            let value: string | null = null;
+                                                            switch (tagKey.tag_type) {
+                                                                case 'date': {
+                                                                    const dateStr = ticket.tags.values.date.get(tagKey.id);
+                                                                    if (dateStr) {
+                                                                        const date = new Date(dateStr);
+                                                                        value = formatDateTagValue(date);
+                                                                    }
+                                                                    break;
+                                                                }
+                                                                case 'number':
+                                                                    value = ticket.tags.values.number.get(tagKey.id) || null;
+                                                                    break;
+                                                                case 'text':
+                                                                    value = ticket.tags.values.text.get(tagKey.id) || null;
+                                                                    break;
+                                                            }
+                                                            if (value === null) return null;
+                                                            return (
+                                                                <Badge
+                                                                    key={tagKey.id}
+                                                                    variant="outline"
+                                                                    className="bg-blue-50"
+                                                                >
+                                                                    {tagKey.name}: {value}
+                                                                </Badge>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    <div className="text-sm text-gray-500">
+                                                        <p>Created {formatDateTime(ticket.created_at || '')}</p>
+                                                        {ticket.updated_at && (
+                                                            <p>Updated {formatDateTime(ticket.updated_at)}</p>
+                                                        )}
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </Link>
                                     </div>
-                                </CardHeader>
-                                <CardContent>
-                                    {ticket.description && (
-                                        <p className="text-gray-600 mb-4 line-clamp-2">
-                                            {ticket.description}
-                                        </p>
-                                    )}
-                                    <div className="flex flex-wrap gap-2 mb-4">
-                                        {ticket.tags.keys.map((tagKey: TicketTagKey) => {
-                                            let value: string | null = null;
-                                            switch (tagKey.tag_type) {
-                                                case 'date': {
-                                                    const dateStr = ticket.tags.values.date.get(tagKey.id);
-                                                    if (dateStr) {
-                                                        // Format the date while preserving timezone information
-                                                        const date = new Date(dateStr);
-                                                        console.log('Formatting ticket date tag:', { tagKey, dateStr, parsedDate: date })
-                                                        value = formatDateTagValue(date);
-                                                    }
-                                                    break;
-                                                }
-                                                case 'number':
-                                                    value = ticket.tags.values.number.get(tagKey.id) || null;
-                                                    break;
-                                                case 'text':
-                                                    value = ticket.tags.values.text.get(tagKey.id) || null;
-                                                    break;
-                                            }
-                                            if (value === null) return null;
-                                            return (
-                                                <Badge
-                                                    key={tagKey.id}
-                                                    variant="outline"
-                                                    className="bg-blue-50"
-                                                >
-                                                    {tagKey.name}: {value}
-                                                </Badge>
-                                            );
-                                        })}
-                                    </div>
-                                    <div className="text-sm text-gray-500">
-                                        <p>Created {formatDateTime(ticket.created_at || '')}</p>
-                                        {ticket.updated_at && (
-                                            <p>Updated {formatDateTime(ticket.updated_at)}</p>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </Link>
-                    ))}
+                                )
+                            })}
+                        </div>
+                    </div>
                 </div>
 
                 <CreateTicketDialog
