@@ -1,9 +1,10 @@
 import { db } from '../../db';
-import { DB } from '../../db/types';
-import { Selectable } from 'kysely';
-import { SyncInputSchema } from './schema';
+import { SyncInputSchema, TableRow } from './schema';
 import { z } from 'zod';
-import { AuthUser } from '../..//utils/auth';
+import { AuthUser } from '../../utils/auth';
+import { createTextTagValue, deleteTextTagValue, updateTextTagValue } from './textTagValue';
+import { createNumberTagValue, deleteNumberTagValue, updateNumberTagValue } from './numberTagValue';
+import { createDateTagValue, deleteDateTagValue, updateDateTagValue } from './dateTagValue';
 
 interface Context {
     user: AuthUser,
@@ -14,9 +15,6 @@ interface SyncParams {
     ctx: Context;
 }
 
-type TableName = keyof Pick<DB, 'profiles' | 'organizations' | 'profile_organization_members' | 'tickets' | 'ticket_comments' | 'organization_invitations'>;
-type TableRow<T extends TableName> = Selectable<DB[T]>;
-
 interface SyncResponse {
     profiles?: TableRow<'profiles'>[];
     organizations?: TableRow<'organizations'>[];
@@ -24,6 +22,10 @@ interface SyncResponse {
     tickets?: TableRow<'tickets'>[];
     ticket_comments?: TableRow<'ticket_comments'>[];
     organization_invitations?: TableRow<'organization_invitations'>[];
+    ticket_tag_keys?: TableRow<'ticket_tag_keys'>[];
+    ticket_tag_date_values?: TableRow<'ticket_tag_date_values'>[];
+    ticket_tag_number_values?: TableRow<'ticket_tag_number_values'>[];
+    ticket_tag_text_values?: TableRow<'ticket_tag_text_values'>[];
 }
 
 // Profile operations
@@ -737,6 +739,130 @@ async function deleteOrganizationInvitation(data: z.infer<typeof SyncInputSchema
     return existingInvitation;
 }
 
+// Ticket Tag Key operations
+async function createTicketTagKey(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'create_ticket_tag_key' }, memberships: Record<string, string>): Promise<TableRow<'ticket_tag_keys'> | null> {
+    // Check if user is an admin of the organization
+    if (memberships[data.data.organization_id] !== 'admin') {
+        return null;
+    }
+
+    try {
+        return await db.insertInto('ticket_tag_keys')
+            .values({
+                id: data.data.id,
+                organization_id: data.data.organization_id,
+                name: data.data.name,
+                description: data.data.description,
+                tag_type: data.data.tag_type,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('duplicate key')) {
+            const existing = await db.selectFrom('ticket_tag_keys')
+                .selectAll()
+                .where('id', '=', data.data.id)
+                .executeTakeFirst();
+
+            if (existing) {
+                return existing;
+            }
+        }
+        const now = new Date();
+        return {
+            id: data.data.id,
+            organization_id: data.data.organization_id,
+            name: data.data.name,
+            description: data.data.description,
+            tag_type: data.data.tag_type,
+            created_at: now,
+            updated_at: now,
+            deleted_at: now,
+        };
+    }
+}
+
+async function updateTicketTagKey(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'update_ticket_tag_key' }, memberships: Record<string, string>): Promise<TableRow<'ticket_tag_keys'> | null> {
+    const existingKey = await db.selectFrom('ticket_tag_keys')
+        .selectAll()
+        .where('id', '=', data.data.id)
+        .executeTakeFirst();
+
+    if (!existingKey || !memberships[existingKey.organization_id]) {
+        return null;
+    }
+
+    if (existingKey.deleted_at) {
+        return existingKey;
+    }
+
+    if (memberships[existingKey.organization_id] !== 'admin') {
+        return null;
+    }
+
+    try {
+        const updated = await db.updateTable('ticket_tag_keys')
+            .set({
+                ...data.data,
+                organization_id: existingKey.organization_id,
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
+    } catch (error) {
+        // Fall through to return unchanged value
+    }
+
+    return existingKey;
+}
+
+async function deleteTicketTagKey(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_ticket_tag_key' }, memberships: Record<string, string>): Promise<TableRow<'ticket_tag_keys'> | null> {
+    const existingKey = await db.selectFrom('ticket_tag_keys')
+        .selectAll()
+        .where('id', '=', data.data.id)
+        .executeTakeFirst();
+
+    if (!existingKey || !memberships[existingKey.organization_id]) {
+        return null;
+    }
+
+    if (existingKey.deleted_at) {
+        return existingKey;
+    }
+
+    if (memberships[existingKey.organization_id] !== 'admin') {
+        return null;
+    }
+
+    try {
+        const updated = await db.updateTable('ticket_tag_keys')
+            .set({
+                deleted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .where('id', '=', data.data.id)
+            .returningAll()
+            .executeTakeFirst();
+
+        if (updated) {
+            return updated;
+        }
+    } catch (error) {
+        // Fall through to return unchanged value
+    }
+
+    return existingKey;
+}
+
+// Tag Value operations
+
 export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncResponse> {
     const results: SyncResponse = {};
 
@@ -878,6 +1004,108 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
                 if (result) {
                     if (!results.organization_invitations) results.organization_invitations = [];
                     results.organization_invitations.push(result);
+                }
+                break;
+            }
+
+            // Ticket Tag Key operations
+            case 'create_ticket_tag_key': {
+                const result = await createTicketTagKey(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_keys) results.ticket_tag_keys = [];
+                    results.ticket_tag_keys.push(result);
+                }
+                break;
+            }
+            case 'update_ticket_tag_key': {
+                const result = await updateTicketTagKey(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_keys) results.ticket_tag_keys = [];
+                    results.ticket_tag_keys.push(result);
+                }
+                break;
+            }
+            case 'delete_ticket_tag_key': {
+                const result = await deleteTicketTagKey(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_keys) results.ticket_tag_keys = [];
+                    results.ticket_tag_keys.push(result);
+                }
+                break;
+            }
+
+            // Tag Value operations
+            case 'create_ticket_tag_date_value': {
+                const result = await createDateTagValue(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_date_values) results.ticket_tag_date_values = [];
+                    results.ticket_tag_date_values.push(result);
+                }
+                break;
+            }
+            case 'update_ticket_tag_date_value': {
+                const result = await updateDateTagValue(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_date_values) results.ticket_tag_date_values = [];
+                    results.ticket_tag_date_values.push(result);
+                }
+                break;
+            }
+            case 'delete_ticket_tag_date_value': {
+                const result = await deleteDateTagValue(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_date_values) results.ticket_tag_date_values = [];
+                    results.ticket_tag_date_values.push(result);
+                }
+                break;
+            }
+
+            case 'create_ticket_tag_number_value': {
+                const result = await createNumberTagValue(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_number_values) results.ticket_tag_number_values = [];
+                    results.ticket_tag_number_values.push(result);
+                }
+                break;
+            }
+            case 'update_ticket_tag_number_value': {
+                const result = await updateNumberTagValue(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_number_values) results.ticket_tag_number_values = [];
+                    results.ticket_tag_number_values.push(result);
+                }
+                break;
+            }
+            case 'delete_ticket_tag_number_value': {
+                const result = await deleteNumberTagValue(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_number_values) results.ticket_tag_number_values = [];
+                    results.ticket_tag_number_values.push(result);
+                }
+                break;
+            }
+
+            case 'create_ticket_tag_text_value': {
+                const result = await createTextTagValue(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_text_values) results.ticket_tag_text_values = [];
+                    results.ticket_tag_text_values.push(result);
+                }
+                break;
+            }
+            case 'update_ticket_tag_text_value': {
+                const result = await updateTextTagValue(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_text_values) results.ticket_tag_text_values = [];
+                    results.ticket_tag_text_values.push(result);
+                }
+                break;
+            }
+            case 'delete_ticket_tag_text_value': {
+                const result = await deleteTextTagValue(operation, ctx.user.organizations);
+                if (result) {
+                    if (!results.ticket_tag_text_values) results.ticket_tag_text_values = [];
+                    results.ticket_tag_text_values.push(result);
                 }
                 break;
             }

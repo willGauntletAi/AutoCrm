@@ -594,6 +594,47 @@ export interface Tickets {
   updated_at: Generated<Timestamp | null>;
 }
 
+export interface TicketTagDateValues {
+  created_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  tag_key_id: string;
+  ticket_id: string;
+  updated_at: Generated<Timestamp>;
+  value: Timestamp;
+}
+
+export interface TicketTagKeys {
+  created_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+  description: string | null;
+  id: Generated<string>;
+  name: string;
+  organization_id: string;
+  tag_type: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface TicketTagNumberValues {
+  created_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  tag_key_id: string;
+  ticket_id: string;
+  updated_at: Generated<Timestamp>;
+  value: Numeric;
+}
+
+export interface TicketTagTextValues {
+  created_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  tag_key_id: string;
+  ticket_id: string;
+  updated_at: Generated<Timestamp>;
+  value: string;
+}
+
 export interface VaultDecryptedSecrets {
   created_at: Timestamp | null;
   decrypted_secret: string | null;
@@ -662,6 +703,10 @@ export interface DB {
   "supabase_functions.migrations": SupabaseFunctionsMigrations;
   "supabase_migrations.schema_migrations": SupabaseMigrationsSchemaMigrations;
   ticket_comments: TicketComments;
+  ticket_tag_date_values: TicketTagDateValues;
+  ticket_tag_keys: TicketTagKeys;
+  ticket_tag_number_values: TicketTagNumberValues;
+  ticket_tag_text_values: TicketTagTextValues;
   tickets: Tickets;
   "vault.decrypted_secrets": VaultDecryptedSecrets;
   "vault.secrets": VaultSecrets;
