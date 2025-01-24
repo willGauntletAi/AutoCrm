@@ -67,7 +67,7 @@ export const TicketTagDateValueSchema = z.object({
     id: z.string().uuid(),
     ticket_id: z.string().uuid(),
     tag_key_id: z.string().uuid(),
-    value: z.date(),
+    value: z.coerce.date(),
 });
 
 export const TicketTagNumberValueSchema = z.object({

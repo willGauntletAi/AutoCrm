@@ -182,8 +182,16 @@ export default function Ticket() {
             setIsUpdatingTicket(false)
         }
     }
-
     const handleUpdateTag = async (tagKey: TicketTagKey, value: string) => {
+        const parseYMDDateString = (dateString: string) => {
+            // Example accepted format: "2023-10-08"
+            const [year, month, day] = dateString.split("-");
+            return new Date(
+                Number(year),
+                Number(month) - 1, // JavaScript months are zero-indexed
+                Number(day)
+            );
+        }
         if (!ticket || !canEdit) return
 
         try {
@@ -197,7 +205,7 @@ export default function Ticket() {
             switch (tagKey.tag_type) {
                 case 'date': {
                     const existing = existingValues.date.get(tagKey.id)
-                    const date = new Date(value)
+                    const date = parseYMDDateString(value)
                     if (existing) {
                         await updateTicketTagDateValue(existing.id, {
                             value: date

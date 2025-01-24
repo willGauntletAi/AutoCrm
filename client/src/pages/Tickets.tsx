@@ -172,7 +172,7 @@ export default function Tickets() {
                 const ticketTags = tagValuesByTicket.get(v.ticket_id)
                 if (ticketTags) {
                     // Convert Date to ISO string for storage
-                    ticketTags.date.set(v.tag_key_id, v.value)
+                    ticketTags.date.set(v.tag_key_id, v.value.toDateString())
                 }
             })
 
@@ -349,12 +349,11 @@ export default function Tickets() {
                                                     if (dateStr) {
                                                         // Format the date while preserving timezone information
                                                         const date = new Date(dateStr);
+                                                        console.log('Formatting ticket date tag:', { tagKey, dateStr, parsedDate: date })
                                                         value = date.toLocaleString(undefined, {
                                                             year: 'numeric',
                                                             month: 'short',
                                                             day: 'numeric',
-                                                            hour: '2-digit',
-                                                            minute: '2-digit',
                                                             timeZoneName: 'short'
                                                         });
                                                     }

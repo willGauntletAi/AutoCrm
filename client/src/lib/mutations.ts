@@ -429,7 +429,8 @@ export async function syncToServer(): Promise<void> {
             return;
         }
 
-        await client.sync.mutate(unsyncedMutations.map(m => m.operation)).then(async (result) => {
+        // We don't wait for this to finish. If it fails, it is fine because we store all mutations in the local db and can retry later.
+        client.sync.mutate(unsyncedMutations.map(m => m.operation)).then(async (result) => {
             await db.transaction('rw', [
                 db.profiles,
                 db.organizations,
@@ -548,6 +549,7 @@ export async function deleteTicketTagKey(id: string): Promise<void> {
 // Tag Value operations
 export async function createTicketTagDateValue(data: Omit<TicketTagDateValue, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
     const timestamp = new Date().toISOString();
+    console.log('Creating ticket tag date value:', { data, timestamp })
     const valueData = {
         ...data,
         created_at: timestamp,
@@ -566,6 +568,7 @@ export async function createTicketTagDateValue(data: Omit<TicketTagDateValue, 'c
 
 export async function updateTicketTagDateValue(id: string, data: Partial<Omit<TicketTagDateValue, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
     const timestamp = new Date().toISOString();
+    console.log('Updating ticket tag date value:', { id, data, timestamp })
     await db.transaction('rw', [db.mutations, db.ticketTagDateValues], async () => {
         const existing = await db.ticketTagDateValues.get(id);
         if (!existing) {
@@ -587,6 +590,7 @@ export async function updateTicketTagDateValue(id: string, data: Partial<Omit<Ti
 
 export async function deleteTicketTagDateValue(id: string): Promise<void> {
     const timestamp = new Date().toISOString();
+    console.log('Deleting ticket tag date value:', { id, timestamp })
     await db.transaction('rw', [db.mutations, db.ticketTagDateValues], async () => {
         await queueMutation({
             operation: 'delete_ticket_tag_date_value',

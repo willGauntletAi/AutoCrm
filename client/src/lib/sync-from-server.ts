@@ -207,7 +207,7 @@ export async function syncFromServer() {
                 await db.ticketTagKeys.bulkPut(tagKeys as TicketTagKey[]);
             }
             if (tagDateValues?.length) {
-                await db.ticketTagDateValues.bulkPut(tagDateValues as TicketTagDateValue[]);
+                await db.ticketTagDateValues.bulkPut(tagDateValues.map(t => ({ ...t, value: new Date(t.value) })) as TicketTagDateValue[]);
             }
             if (tagNumberValues?.length) {
                 await db.ticketTagNumberValues.bulkPut(tagNumberValues as TicketTagNumberValueWithNumber[]);
@@ -414,7 +414,8 @@ function setupRealtimeSync() {
             if (payload.eventType === 'DELETE') {
                 await db.ticketTagDateValues.delete(payload.old.id);
             } else {
-                await db.ticketTagDateValues.put(payload.new);
+                const newDateValue = { ...payload.new, value: new Date(payload.new.value) };
+                await db.ticketTagDateValues.put(newDateValue);
             }
         })
         .on('postgres_changes', {
