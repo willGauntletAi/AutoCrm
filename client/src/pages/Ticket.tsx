@@ -33,9 +33,17 @@ import { CreateTagDialog } from '../components/CreateTagDialog'
 import { AddTagValue } from '../components/AddTagValue'
 import { Plus } from 'lucide-react'
 import { formatDateTagValue, formatDateTime, parseYMDDateString } from '@/lib/utils'
+import { RichTextEditor } from '../components/RichTextEditor'
+import DOMPurify from 'dompurify'
 
 const TICKET_STATUS_OPTIONS = ['open', 'in_progress', 'closed'] as const
 const TICKET_PRIORITY_OPTIONS = ['low', 'medium', 'high'] as const
+
+// Configure DOMPurify to only allow specific tags and attributes
+const purifyConfig = {
+    ALLOWED_TAGS: ['p', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'br'],
+    ALLOWED_ATTR: ['href', 'target', 'rel'],
+}
 
 export default function Ticket() {
     const { organization_id, ticket_id } = useParams<{ organization_id: string, ticket_id: string }>()
@@ -562,11 +570,10 @@ export default function Ticket() {
 
                 <div className="space-y-4">
                     <form onSubmit={handleSubmitComment} className="space-y-4">
-                        <Textarea
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            placeholder="Write a comment..."
-                            className="min-h-[100px]"
+                        <RichTextEditor
+                            content={newComment}
+                            onChange={setNewComment}
+                            disabled={isCreatingComment}
                         />
                         <Button
                             type="submit"
@@ -603,7 +610,12 @@ export default function Ticket() {
                                                     {new Date(comment.created_at || '').toLocaleString()}
                                                 </span>
                                             </div>
-                                            <p className="text-gray-700 whitespace-pre-wrap">{comment.comment}</p>
+                                            <div
+                                                className="text-gray-700 prose prose-sm max-w-none"
+                                                dangerouslySetInnerHTML={{
+                                                    __html: DOMPurify.sanitize(comment.comment, purifyConfig)
+                                                }}
+                                            />
                                         </div>
                                     </div>
                                 </CardContent>
