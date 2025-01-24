@@ -9,31 +9,136 @@ import { createTicket } from '../lib/mutations'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '@/lib/auth'
 import type { TicketTagKey } from '../lib/db'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { TagFilter } from '../components/TagFilter'
+
+type TagFilter = {
+    tagKeyId: string;
+    operator: 'eq' | 'lt' | 'gt' | 'prefix';
+    value: string;
+}
 
 export default function Tickets() {
     const { organization_id } = useParams<{ organization_id: string }>()
     const [error, setError] = useState<string | null>(null)
     const [isCreatingTicket, setIsCreatingTicket] = useState(false)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [tagFilters, setTagFilters] = useState<TagFilter[]>([])
     const { user } = useAuth()
 
     const tickets = useLiveQuery(
         async () => {
-            const ticketsList = await db.tickets
-                .where('organization_id')
-                .equals(organization_id!)
-                .filter(ticket => !ticket.deleted_at)
-                .reverse()
-                .toArray()
-
-            // Fetch all tag keys for the organization
+            // First get all tag keys for the organization
             const tagKeys = await db.ticketTagKeys
                 .where('organization_id')
                 .equals(organization_id!)
                 .filter(key => !key.deleted_at)
                 .toArray()
 
-            // Get all ticket IDs
+            // Start with all tickets in the organization
+            let ticketsList = await db.tickets
+                .where('organization_id')
+                .equals(organization_id!)
+                .filter(ticket => !ticket.deleted_at)
+                .toArray()
+
+            // Apply tag filters
+            if (tagFilters.length > 0) {
+                const filteredTicketIds = new Set<string>()
+                const processedTickets = new Set<string>()
+
+                for (const filter of tagFilters) {
+                    const tagKey = tagKeys.find(tk => tk.id === filter.tagKeyId)
+                    if (!tagKey) continue
+
+                    let matchingTickets: string[] = []
+
+                    switch (tagKey.tag_type) {
+                        case 'date': {
+                            const dateValues = await db.ticketTagDateValues
+                                .where('tag_key_id')
+                                .equals(filter.tagKeyId)
+                                .filter(v => !v.deleted_at)
+                                .toArray()
+
+                            const filterDate = new Date(filter.value)
+                            matchingTickets = dateValues
+                                .filter(v => {
+                                    const valueDate = new Date(v.value)
+                                    switch (filter.operator) {
+                                        case 'eq': return valueDate.getTime() === filterDate.getTime()
+                                        case 'lt': return valueDate < filterDate
+                                        case 'gt': return valueDate > filterDate
+                                        default: return false
+                                    }
+                                })
+                                .map(v => v.ticket_id)
+                            break
+                        }
+                        case 'number': {
+                            const numberValues = await db.ticketTagNumberValues
+                                .where('tag_key_id')
+                                .equals(filter.tagKeyId)
+                                .filter(v => !v.deleted_at)
+                                .toArray()
+
+                            const filterNumber = Number(filter.value)
+                            matchingTickets = numberValues
+                                .filter(v => {
+                                    switch (filter.operator) {
+                                        case 'eq': return v.value === filterNumber
+                                        case 'lt': return v.value < filterNumber
+                                        case 'gt': return v.value > filterNumber
+                                        default: return false
+                                    }
+                                })
+                                .map(v => v.ticket_id)
+                            break
+                        }
+                        case 'text': {
+                            const textValues = await db.ticketTagTextValues
+                                .where('tag_key_id')
+                                .equals(filter.tagKeyId)
+                                .filter(v => !v.deleted_at)
+                                .toArray()
+
+                            matchingTickets = textValues
+                                .filter(v => {
+                                    switch (filter.operator) {
+                                        case 'eq': return v.value === filter.value
+                                        case 'prefix': return v.value.startsWith(filter.value)
+                                        default: return false
+                                    }
+                                })
+                                .map(v => v.ticket_id)
+                            break
+                        }
+                    }
+
+                    // For the first filter, add all matching tickets
+                    if (processedTickets.size === 0) {
+                        matchingTickets.forEach(id => filteredTicketIds.add(id))
+                    } else {
+                        // For subsequent filters, only keep tickets that match all filters
+                        const newFilteredIds = new Set<string>()
+                        matchingTickets.forEach(id => {
+                            if (filteredTicketIds.has(id)) {
+                                newFilteredIds.add(id)
+                            }
+                        })
+                        filteredTicketIds.clear()
+                        newFilteredIds.forEach(id => filteredTicketIds.add(id))
+                    }
+
+                    processedTickets.add(filter.tagKeyId)
+                }
+
+                // Filter tickets to only those matching all filters
+                ticketsList = ticketsList.filter(ticket => filteredTicketIds.has(ticket.id))
+            }
+
+            // Get all ticket IDs for fetching tag values
             const ticketIds = ticketsList.map(t => t.id)
 
             // Fetch all tag values for these tickets
@@ -66,9 +171,8 @@ export default function Tickets() {
             dateValues.forEach(v => {
                 const ticketTags = tagValuesByTicket.get(v.ticket_id)
                 if (ticketTags) {
-                    console.log(v.value)
-                    // Store the date string directly
-                    ticketTags.date.set(v.tag_key_id, v.value.toISOString())
+                    // Convert Date to ISO string for storage
+                    ticketTags.date.set(v.tag_key_id, v.value)
                 }
             })
 
@@ -86,21 +190,24 @@ export default function Tickets() {
                 }
             })
 
-            // Attach tag data to tickets
-            return ticketsList.map(ticket => ({
-                ...ticket,
-                tags: {
-                    keys: tagKeys,
-                    values: tagValuesByTicket.get(ticket.id) || {
-                        date: new Map(),
-                        number: new Map(),
-                        text: new Map()
+            // Return both tickets and tag keys
+            return {
+                tickets: ticketsList.map(ticket => ({
+                    ...ticket,
+                    tags: {
+                        keys: tagKeys,
+                        values: tagValuesByTicket.get(ticket.id) || {
+                            date: new Map(),
+                            number: new Map(),
+                            text: new Map()
+                        }
                     }
-                }
-            }))
+                })),
+                tagKeys
+            }
         },
-        [organization_id],
-        []
+        [organization_id, tagFilters],
+        { tickets: [], tagKeys: [] }
     )
 
     const handleCreateTicket = async (data: { title: string; description: string; priority: 'high' | 'low' | 'medium' }) => {
@@ -179,7 +286,39 @@ export default function Tickets() {
                 </div>
 
                 <div className="space-y-4">
-                    {tickets.map((ticket) => (
+                    <div className="space-y-2">
+                        {tagFilters.map((filter, index) => (
+                            <TagFilter
+                                key={index}
+                                availableTags={tickets.tagKeys}
+                                filter={filter}
+                                onDelete={() => {
+                                    const newFilters = [...tagFilters]
+                                    newFilters.splice(index, 1)
+                                    setTagFilters(newFilters)
+                                }}
+                                onChange={(updatedFilter) => {
+                                    const newFilters = [...tagFilters]
+                                    newFilters[index] = updatedFilter
+                                    setTagFilters(newFilters)
+                                }}
+                            />
+                        ))}
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setTagFilters([
+                                    ...tagFilters,
+                                    { tagKeyId: '', operator: 'eq', value: '' }
+                                ])
+                            }}
+                            className="w-full"
+                        >
+                            Add Filter
+                        </Button>
+                    </div>
+
+                    {tickets.tickets.map((ticket) => (
                         <Link key={ticket.id} to={`/${organization_id}/tickets/${ticket.id}`}>
                             <Card className="hover:shadow-md transition-shadow">
                                 <CardHeader>
