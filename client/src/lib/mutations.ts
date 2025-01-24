@@ -1,4 +1,4 @@
-import { db } from './db';
+import { db, TicketTagNumberValueWithNumber } from './db';
 import { z } from 'zod';
 import { client } from './trpc';
 import { CURRENT_USER_KEY } from './sync-from-server';
@@ -10,6 +10,10 @@ import {
     type Ticket,
     type TicketComment,
     type OrganizationInvitation,
+    type TicketTagKey,
+    type TicketTagDateValue,
+    type TicketTagNumberValue,
+    type TicketTagTextValue,
     type Mutation
 } from './db';
 
@@ -416,7 +420,6 @@ export async function applyMutation(operation: Operation): Promise<void> {
 // Sync local mutations to server
 export async function syncToServer(): Promise<void> {
     try {
-        // Get all unsynced mutations
         const unsyncedMutations = await db.mutations
             .where('synced')
             .equals(0)
@@ -426,19 +429,20 @@ export async function syncToServer(): Promise<void> {
             return;
         }
 
-        // Send mutations to server
         await client.sync.mutate(unsyncedMutations.map(m => m.operation)).then(async (result) => {
-
-            // Update local records with server timestamps
             await db.transaction('rw', [
                 db.profiles,
                 db.organizations,
                 db.profileOrganizationMembers,
                 db.tickets,
                 db.ticketComments,
+                db.organizationInvitations,
+                db.ticketTagKeys,
+                db.ticketTagDateValues,
+                db.ticketTagNumberValues,
+                db.ticketTagTextValues,
                 db.mutations
             ], async () => {
-                // Update each type of record with server response
                 if (result.profiles?.length) {
                     await db.profiles.bulkPut(result.profiles);
                 }
@@ -454,14 +458,255 @@ export async function syncToServer(): Promise<void> {
                 if (result.ticket_comments?.length) {
                     await db.ticketComments.bulkPut(result.ticket_comments);
                 }
+                if (result.organization_invitations?.length) {
+                    await db.organizationInvitations.bulkPut(result.organization_invitations);
+                }
+                if (result.ticket_tag_keys?.length) {
+                    await db.ticketTagKeys.bulkPut(result.ticket_tag_keys.map(key => ({
+                        ...key,
+                        tag_type: key.tag_type as 'date' | 'number' | 'text'
+                    })));
+                }
+                if (result.ticket_tag_date_values?.length) {
+                    await db.ticketTagDateValues.bulkPut(result.ticket_tag_date_values.map(value => ({
+                        ...value,
+                        value: new Date(value.value)
+                    })));
+                }
+                if (result.ticket_tag_number_values?.length) {
+                    const vals = result.ticket_tag_number_values.map(v => ({ ...v, value: Number(v.value) }));
+                    await db.ticketTagNumberValues.bulkPut(vals);
+                }
+                if (result.ticket_tag_text_values?.length) {
+                    await db.ticketTagTextValues.bulkPut(result.ticket_tag_text_values);
+                }
 
-                // Mark mutations as synced
                 await markMutationsSynced(unsyncedMutations.map(m => m.id!));
             });
-
         });
     } catch (error) {
         console.error('Error syncing to server:', error);
         throw error;
     }
+}
+
+// Ticket Tag Key operations
+export async function createTicketTagKey(data: Omit<TicketTagKey, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const tagKeyData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.ticketTagKeys], async () => {
+        await queueMutation({
+            operation: 'create_ticket_tag_key',
+            data: tagKeyData,
+        });
+        await db.ticketTagKeys.put(tagKeyData);
+    });
+    await syncToServer();
+}
+
+export async function updateTicketTagKey(id: string, data: Partial<Omit<TicketTagKey, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagKeys], async () => {
+        const existing = await db.ticketTagKeys.get(id);
+        if (!existing) {
+            throw new Error(`Ticket Tag Key ${id} not found`);
+        }
+        const tagKeyData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_ticket_tag_key',
+            data: tagKeyData,
+        });
+        await db.ticketTagKeys.update(id, tagKeyData);
+    });
+    await syncToServer();
+}
+
+export async function deleteTicketTagKey(id: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagKeys], async () => {
+        await queueMutation({
+            operation: 'delete_ticket_tag_key',
+            data: { id },
+        });
+        await db.ticketTagKeys.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
+    });
+    await syncToServer();
+}
+
+// Tag Value operations
+export async function createTicketTagDateValue(data: Omit<TicketTagDateValue, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const valueData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.ticketTagDateValues], async () => {
+        await queueMutation({
+            operation: 'create_ticket_tag_date_value',
+            data: valueData,
+        });
+        await db.ticketTagDateValues.put(valueData);
+    });
+    await syncToServer();
+}
+
+export async function updateTicketTagDateValue(id: string, data: Partial<Omit<TicketTagDateValue, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagDateValues], async () => {
+        const existing = await db.ticketTagDateValues.get(id);
+        if (!existing) {
+            throw new Error(`Ticket Tag Date Value ${id} not found`);
+        }
+        const valueData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_ticket_tag_date_value',
+            data: valueData,
+        });
+        await db.ticketTagDateValues.update(id, valueData);
+    });
+    await syncToServer();
+}
+
+export async function deleteTicketTagDateValue(id: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagDateValues], async () => {
+        await queueMutation({
+            operation: 'delete_ticket_tag_date_value',
+            data: { id },
+        });
+        await db.ticketTagDateValues.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
+    });
+    await syncToServer();
+}
+
+export async function createTicketTagNumberValue(data: Omit<TicketTagNumberValue, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const valueData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.ticketTagNumberValues], async () => {
+        await queueMutation({
+            operation: 'create_ticket_tag_number_value',
+            data: valueData,
+        });
+        await db.ticketTagNumberValues.put({ ...valueData, value: Number(valueData.value) });
+    });
+    await syncToServer();
+}
+
+export async function updateTicketTagNumberValue(id: string, data: Partial<Omit<TicketTagNumberValue, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagNumberValues], async () => {
+        const existing = await db.ticketTagNumberValues.get(id);
+        if (!existing) {
+            throw new Error(`Ticket Tag Number Value ${id} not found`);
+        }
+        const valueData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        if (typeof valueData.value === 'number') {
+            valueData.value = String(valueData.value);
+        }
+        await queueMutation({
+            operation: 'update_ticket_tag_number_value',
+            data: valueData as TicketTagNumberValue,
+        });
+        await db.ticketTagNumberValues.update(id, valueData as TicketTagNumberValueWithNumber);
+    });
+    await syncToServer();
+}
+
+export async function deleteTicketTagNumberValue(id: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagNumberValues], async () => {
+        await queueMutation({
+            operation: 'delete_ticket_tag_number_value',
+            data: { id },
+        });
+        await db.ticketTagNumberValues.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
+    });
+    await syncToServer();
+}
+
+export async function createTicketTagTextValue(data: Omit<TicketTagTextValue, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const valueData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.ticketTagTextValues], async () => {
+        await queueMutation({
+            operation: 'create_ticket_tag_text_value',
+            data: valueData,
+        });
+        await db.ticketTagTextValues.put(valueData);
+    });
+    await syncToServer();
+}
+
+export async function updateTicketTagTextValue(id: string, data: Partial<Omit<TicketTagTextValue, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagTextValues], async () => {
+        const existing = await db.ticketTagTextValues.get(id);
+        if (!existing) {
+            throw new Error(`Ticket Tag Text Value ${id} not found`);
+        }
+        const valueData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_ticket_tag_text_value',
+            data: valueData,
+        });
+        await db.ticketTagTextValues.update(id, valueData);
+    });
+    await syncToServer();
+}
+
+export async function deleteTicketTagTextValue(id: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagTextValues], async () => {
+        await queueMutation({
+            operation: 'delete_ticket_tag_text_value',
+            data: { id },
+        });
+        await db.ticketTagTextValues.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
+    });
+    await syncToServer();
 } 

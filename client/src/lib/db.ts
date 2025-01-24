@@ -7,6 +7,10 @@ import {
     TicketSchema as ServerTicketSchema,
     TicketCommentSchema as ServerTicketCommentSchema,
     OrganizationInvitationSchema as ServerOrganizationInvitationSchema,
+    TicketTagKeySchema as ServerTicketTagKeySchema,
+    TicketTagDateValueSchema as ServerTicketTagDateValueSchema,
+    TicketTagNumberValueSchema as ServerTicketTagNumberValueSchema,
+    TicketTagTextValueSchema as ServerTicketTagTextValueSchema,
     SyncOperationSchema,
 } from '../../../server/src/handlers/sync/schema';
 
@@ -24,6 +28,21 @@ export const ProfileOrganizationMemberSchema = ServerProfileOrganizationMemberSc
 export const TicketSchema = ServerTicketSchema.extend(TimestampFieldsSchema.shape);
 export const TicketCommentSchema = ServerTicketCommentSchema.extend(TimestampFieldsSchema.shape);
 export const OrganizationInvitationSchema = ServerOrganizationInvitationSchema.extend(TimestampFieldsSchema.shape);
+export const TicketTagKeySchema = ServerTicketTagKeySchema.extend(TimestampFieldsSchema.shape);
+export const TicketTagDateValueSchema = ServerTicketTagDateValueSchema.extend(TimestampFieldsSchema.shape);
+export const TicketTagNumberValueSchema = ServerTicketTagNumberValueSchema.extend(TimestampFieldsSchema.shape);
+export const TicketTagTextValueSchema = ServerTicketTagTextValueSchema.extend(TimestampFieldsSchema.shape);
+
+// Create a modified version of TicketTagNumberValueSchema with number value
+export const TicketTagNumberValueWithNumberSchema = z.object({
+    id: z.string().uuid(),
+    ticket_id: z.string().uuid(),
+    tag_key_id: z.string().uuid(),
+    value: z.number(),
+    created_at: z.string().nullable(),
+    updated_at: z.string().nullable(),
+    deleted_at: z.string().nullable(),
+});
 
 export const SystemMetadataSchema = z.object({
     key: z.string(),
@@ -49,6 +68,11 @@ export type TicketComment = z.infer<typeof TicketCommentSchema>;
 export type SystemMetadata = z.infer<typeof SystemMetadataSchema>;
 export type Mutation = z.infer<typeof MutationSchema>;
 export type OrganizationInvitation = z.infer<typeof OrganizationInvitationSchema>;
+export type TicketTagKey = z.infer<typeof TicketTagKeySchema>;
+export type TicketTagDateValue = z.infer<typeof TicketTagDateValueSchema>;
+export type TicketTagNumberValueWithNumber = z.infer<typeof TicketTagNumberValueWithNumberSchema>;
+export type TicketTagNumberValue = z.infer<typeof TicketTagNumberValueSchema>;
+export type TicketTagTextValue = z.infer<typeof TicketTagTextValueSchema>;
 
 // Define database class
 export class AutoCRMDatabase extends Dexie {
@@ -60,6 +84,10 @@ export class AutoCRMDatabase extends Dexie {
     system!: Table<SystemMetadata>;
     mutations!: Table<Mutation>;
     organizationInvitations!: Table<OrganizationInvitation>;
+    ticketTagKeys!: Table<TicketTagKey>;
+    ticketTagDateValues!: Table<TicketTagDateValue>;
+    ticketTagNumberValues!: Table<TicketTagNumberValueWithNumber>;
+    ticketTagTextValues!: Table<TicketTagTextValue>;
 
     constructor() {
         super('auto-crm');
@@ -72,6 +100,10 @@ export class AutoCRMDatabase extends Dexie {
             system: '&key',
             mutations: '++id, timestamp, synced',
             organizationInvitations: '&id, organization_id, email, created_at, updated_at',
+            ticketTagKeys: '&id, organization_id, name, tag_type, created_at, updated_at',
+            ticketTagDateValues: '&id, ticket_id, tag_key_id, value, created_at, updated_at',
+            ticketTagNumberValues: '&id, ticket_id, tag_key_id, value, created_at, updated_at',
+            ticketTagTextValues: '&id, ticket_id, tag_key_id, value, created_at, updated_at',
         });
 
         // Add hooks to validate data
@@ -129,6 +161,34 @@ export class AutoCRMDatabase extends Dexie {
         });
         this.organizationInvitations.hook('updating', (mods) => {
             OrganizationInvitationSchema.partial().parse(mods);
+        });
+
+        this.ticketTagKeys.hook('creating', (_, obj) => {
+            TicketTagKeySchema.parse(obj);
+        });
+        this.ticketTagKeys.hook('updating', (mods) => {
+            TicketTagKeySchema.partial().parse(mods);
+        });
+
+        this.ticketTagDateValues.hook('creating', (_, obj) => {
+            TicketTagDateValueSchema.parse(obj);
+        });
+        this.ticketTagDateValues.hook('updating', (mods) => {
+            TicketTagDateValueSchema.partial().parse(mods);
+        });
+
+        this.ticketTagNumberValues.hook('creating', (_, obj) => {
+            TicketTagNumberValueWithNumberSchema.parse(obj);
+        });
+        this.ticketTagNumberValues.hook('updating', (mods) => {
+            TicketTagNumberValueWithNumberSchema.partial().parse(mods);
+        });
+
+        this.ticketTagTextValues.hook('creating', (_, obj) => {
+            TicketTagTextValueSchema.parse(obj);
+        });
+        this.ticketTagTextValues.hook('updating', (mods) => {
+            TicketTagTextValueSchema.partial().parse(mods);
         });
     }
 }
