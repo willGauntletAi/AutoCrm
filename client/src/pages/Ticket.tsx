@@ -12,6 +12,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "../components/ui/select"
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from "../components/ui/collapsible"
+import { ChevronDown } from 'lucide-react'
 import { db } from '../lib/db'
 import {
     createTicketComment,
@@ -55,6 +61,7 @@ export default function Ticket() {
     const [isCreateTagDialogOpen, setIsCreateTagDialogOpen] = useState(false)
     const [isAddingTagValue, setIsAddingTagValue] = useState(false)
     const { user } = useAuth()
+    const [isTagsOpen, setIsTagsOpen] = useState(false)
 
     const ticket = useLiveQuery(
         async () => {
@@ -412,18 +419,15 @@ export default function Ticket() {
                                 </p>
                             )}
                             <div className="mb-4">
-                                <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-medium">Tags</h3>
-                                    {canEdit && !isAddingTagValue && getUnusedTagKeys().length > 0 && (
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setIsAddingTagValue(true)}
-                                            >
-                                                <Plus className="h-4 w-4 mr-1" />
-                                                Add Tag
-                                            </Button>
+                                <Collapsible open={isTagsOpen} onOpenChange={setIsTagsOpen}>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <CollapsibleTrigger asChild>
+                                            <div className="flex items-center gap-2 cursor-pointer">
+                                                <h3 className="text-sm font-medium">Tags</h3>
+                                                <ChevronDown className={`h-4 w-4 transition-transform ${isTagsOpen ? 'transform rotate-180' : ''}`} />
+                                            </div>
+                                        </CollapsibleTrigger>
+                                        {canEdit && (
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -431,132 +435,145 @@ export default function Ticket() {
                                             >
                                                 Create New Tag
                                             </Button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="space-y-2">
-                                    {isAddingTagValue && (
-                                        <AddTagValue
-                                            tagKeys={getUnusedTagKeys()}
-                                            onSubmit={handleUpdateTag}
-                                            onCancel={() => setIsAddingTagValue(false)}
-                                            isSubmitting={isUpdatingTags}
-                                        />
-                                    )}
-                                    {/* Date tag values */}
-                                    {Array.from(tagData.values.date.entries()).map(([tagKeyId, value]) => {
-                                        const tagKey = tagData.keys.find(k => k.id === tagKeyId)
-                                        if (!tagKey) return null
-                                        return (
-                                            <div key={tagKey.id} className="flex items-center gap-2">
-                                                <span className="text-sm text-gray-500 w-24">{tagKey.name}:</span>
-                                                {canEdit ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <Input
-                                                            type="date"
-                                                            className="w-[200px]"
-                                                            value={value.value instanceof Date ? value.value.toISOString().split('T')[0] : new Date(value.value).toISOString().split('T')[0]}
-                                                            onChange={(e) => handleUpdateTag(tagKey, e.target.value)}
-                                                            disabled={isUpdatingTags}
-                                                        />
-                                                        <Button
-                                                            variant="destructive"
-                                                            size="sm"
-                                                            onClick={() => handleDeleteTag(tagKey, value.id)}
-                                                            disabled={isUpdatingTags}
-                                                        >
-                                                            Delete
-                                                        </Button>
+                                        )}
+                                    </div>
+                                    <CollapsibleContent>
+                                        <div className="space-y-2">
+                                            {isAddingTagValue && (
+                                                <AddTagValue
+                                                    tagKeys={getUnusedTagKeys()}
+                                                    onSubmit={handleUpdateTag}
+                                                    onCancel={() => setIsAddingTagValue(false)}
+                                                    isSubmitting={isUpdatingTags}
+                                                />
+                                            )}
+                                            {/* Date tag values */}
+                                            {Array.from(tagData.values.date.entries()).map(([tagKeyId, value]) => {
+                                                const tagKey = tagData.keys.find(k => k.id === tagKeyId)
+                                                if (!tagKey) return null
+                                                return (
+                                                    <div key={tagKey.id} className="flex items-center gap-2">
+                                                        <span className="text-sm text-gray-500 w-24 truncate" title={tagKey.name}>{tagKey.name}:</span>
+                                                        {canEdit ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <Input
+                                                                    type="date"
+                                                                    className="w-[200px]"
+                                                                    value={value.value instanceof Date ? value.value.toISOString().split('T')[0] : new Date(value.value).toISOString().split('T')[0]}
+                                                                    onChange={(e) => handleUpdateTag(tagKey, e.target.value)}
+                                                                    disabled={isUpdatingTags}
+                                                                />
+                                                                <Button
+                                                                    variant="destructive"
+                                                                    size="sm"
+                                                                    onClick={() => handleDeleteTag(tagKey, value.id)}
+                                                                    disabled={isUpdatingTags}
+                                                                >
+                                                                    Delete
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <Badge variant="secondary">
+                                                                {formatDateTagValue(value.value)}
+                                                            </Badge>
+                                                        )}
                                                     </div>
-                                                ) : (
-                                                    <Badge variant="secondary">
-                                                        {formatDateTagValue(value.value)}
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                    {/* Number tag values */}
-                                    {Array.from(tagData.values.number.entries()).map(([tagKeyId, value]) => {
-                                        const tagKey = tagData.keys.find(k => k.id === tagKeyId)
-                                        if (!tagKey) return null
-                                        return (
-                                            <div key={tagKey.id} className="flex items-center gap-2">
-                                                <span className="text-sm text-gray-500 w-24">{tagKey.name}:</span>
-                                                {canEdit ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <Input
-                                                            type="number"
-                                                            className="w-[200px]"
-                                                            value={value.value}
-                                                            onChange={(e) => handleUpdateTag(tagKey, e.target.value)}
-                                                            disabled={isUpdatingTags}
-                                                        />
-                                                        <Button
-                                                            variant="destructive"
-                                                            size="sm"
-                                                            onClick={() => handleDeleteTag(tagKey, value.id)}
-                                                            disabled={isUpdatingTags}
-                                                        >
-                                                            Delete
-                                                        </Button>
+                                                )
+                                            })}
+                                            {/* Number tag values */}
+                                            {Array.from(tagData.values.number.entries()).map(([tagKeyId, value]) => {
+                                                const tagKey = tagData.keys.find(k => k.id === tagKeyId)
+                                                if (!tagKey) return null
+                                                return (
+                                                    <div key={tagKey.id} className="flex items-center gap-2">
+                                                        <span className="text-sm text-gray-500 w-24 truncate" title={tagKey.name}>{tagKey.name}:</span>
+                                                        {canEdit ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <Input
+                                                                    type="number"
+                                                                    className="w-[200px]"
+                                                                    value={value.value}
+                                                                    onChange={(e) => handleUpdateTag(tagKey, e.target.value)}
+                                                                    disabled={isUpdatingTags}
+                                                                />
+                                                                <Button
+                                                                    variant="destructive"
+                                                                    size="sm"
+                                                                    onClick={() => handleDeleteTag(tagKey, value.id)}
+                                                                    disabled={isUpdatingTags}
+                                                                >
+                                                                    Delete
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <Badge variant="secondary">
+                                                                {value.value}
+                                                            </Badge>
+                                                        )}
                                                     </div>
-                                                ) : (
-                                                    <Badge variant="secondary">
-                                                        {value.value}
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                    {/* Text tag values */}
-                                    {Array.from(tagData.values.text.entries()).map(([tagKeyId, value]) => {
-                                        const tagKey = tagData.keys.find(k => k.id === tagKeyId)
-                                        if (!tagKey) return null
-                                        return (
-                                            <div key={tagKey.id} className="flex items-center gap-2">
-                                                <span className="text-sm text-gray-500 w-24">{tagKey.name}:</span>
-                                                {canEdit ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <Input
-                                                            type="text"
-                                                            className="w-[200px]"
-                                                            value={value.value}
-                                                            onChange={(e) => handleUpdateTag(tagKey, e.target.value)}
-                                                            disabled={isUpdatingTags}
-                                                        />
-                                                        <Button
-                                                            variant="destructive"
-                                                            size="sm"
-                                                            onClick={() => handleDeleteTag(tagKey, value.id)}
-                                                            disabled={isUpdatingTags}
-                                                        >
-                                                            Delete
-                                                        </Button>
+                                                )
+                                            })}
+                                            {/* Text tag values */}
+                                            {Array.from(tagData.values.text.entries()).map(([tagKeyId, value]) => {
+                                                const tagKey = tagData.keys.find(k => k.id === tagKeyId)
+                                                if (!tagKey) return null
+                                                return (
+                                                    <div key={tagKey.id} className="flex items-center gap-2">
+                                                        <span className="text-sm text-gray-500 w-24 truncate" title={tagKey.name}>{tagKey.name}:</span>
+                                                        {canEdit ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-[200px] relative">
+                                                                    <Input
+                                                                        type="text"
+                                                                        className="w-[200px]"
+                                                                        value={value.value}
+                                                                        onChange={(e) => handleUpdateTag(tagKey, e.target.value)}
+                                                                        disabled={isUpdatingTags}
+                                                                        title={value.value}
+                                                                        style={{
+                                                                            textOverflow: 'ellipsis',
+                                                                            whiteSpace: 'nowrap',
+                                                                            overflow: 'hidden'
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                                <Button
+                                                                    variant="destructive"
+                                                                    size="sm"
+                                                                    onClick={() => handleDeleteTag(tagKey, value.id)}
+                                                                    disabled={isUpdatingTags}
+                                                                >
+                                                                    Delete
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <Badge variant="secondary">
+                                                                {value.value}
+                                                            </Badge>
+                                                        )}
                                                     </div>
-                                                ) : (
-                                                    <Badge variant="secondary">
-                                                        {value.value}
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                    {!isAddingTagValue && tagData.keys.length === 0 && (
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-sm text-gray-500">No tags defined</p>
-                                            {canEdit && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => setIsCreateTagDialogOpen(true)}
-                                                >
-                                                    Create New Tag
-                                                </Button>
+                                                )
+                                            })}
+                                            {!isAddingTagValue && tagData.keys.length === 0 && (
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-sm text-gray-500">No tags defined</p>
+                                                </div>
+                                            )}
+                                            {canEdit && !isAddingTagValue && getUnusedTagKeys().length > 0 && (
+                                                <div className="mt-4">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => setIsAddingTagValue(true)}
+                                                    >
+                                                        <Plus className="h-4 w-4 mr-1" />
+                                                        Add Tag
+                                                    </Button>
+                                                </div>
                                             )}
                                         </div>
-                                    )}
-                                </div>
+                                    </CollapsibleContent>
+                                </Collapsible>
                             </div>
                             <div className="text-sm text-gray-500">
                                 <p>Created {formatDateTime(ticket.created_at || '')}</p>

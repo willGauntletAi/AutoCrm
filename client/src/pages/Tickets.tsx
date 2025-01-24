@@ -12,6 +12,12 @@ import type { TicketTagKey } from '../lib/db'
 import { TagFilter } from '../components/TagFilter'
 import { formatDateTagValue, formatDateTime } from '@/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 
 type TagFilter = {
     tagKeyId: string;
@@ -27,6 +33,11 @@ export default function Tickets() {
     const [tagFilters, setTagFilters] = useState<TagFilter[]>([])
     const { user } = useAuth()
     const parentRef = useRef<HTMLDivElement>(null)
+    const [selectedTicketTags, setSelectedTicketTags] = useState<{
+        ticketId: string;
+        title: string;
+        tags: Array<{ key: TicketTagKey; value: string }>;
+    } | null>(null)
 
     const tickets = useLiveQuery(
         async () => {
@@ -372,36 +383,100 @@ export default function Tickets() {
                                                             {ticket.description}
                                                         </p>
                                                     )}
-                                                    <div className="flex flex-wrap gap-2 mb-4">
-                                                        {ticket.tags.keys.map((tagKey: TicketTagKey) => {
-                                                            let value: string | null = null;
-                                                            switch (tagKey.tag_type) {
-                                                                case 'date': {
-                                                                    const dateStr = ticket.tags.values.date.get(tagKey.id);
-                                                                    if (dateStr) {
-                                                                        const date = new Date(dateStr);
-                                                                        value = formatDateTagValue(date);
+                                                    <div className="mb-4">
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {ticket.tags.keys.map((tagKey: TicketTagKey, index) => {
+                                                                let value: string | null = null;
+                                                                switch (tagKey.tag_type) {
+                                                                    case 'date': {
+                                                                        const dateStr = ticket.tags.values.date.get(tagKey.id);
+                                                                        if (dateStr) {
+                                                                            const date = new Date(dateStr);
+                                                                            value = formatDateTagValue(date);
+                                                                        }
+                                                                        break;
                                                                     }
-                                                                    break;
+                                                                    case 'number':
+                                                                        value = ticket.tags.values.number.get(tagKey.id) || null;
+                                                                        break;
+                                                                    case 'text':
+                                                                        value = ticket.tags.values.text.get(tagKey.id) || null;
+                                                                        break;
                                                                 }
-                                                                case 'number':
-                                                                    value = ticket.tags.values.number.get(tagKey.id) || null;
-                                                                    break;
-                                                                case 'text':
-                                                                    value = ticket.tags.values.text.get(tagKey.id) || null;
-                                                                    break;
-                                                            }
-                                                            if (value === null) return null;
-                                                            return (
-                                                                <Badge
-                                                                    key={tagKey.id}
-                                                                    variant="outline"
-                                                                    className="bg-blue-50"
-                                                                >
-                                                                    {tagKey.name}: {value}
-                                                                </Badge>
-                                                            );
-                                                        })}
+                                                                if (value === null) return null;
+
+                                                                // Only show first 4 tags (approximately 2 rows)
+                                                                if (index >= 4) return null;
+
+                                                                return (
+                                                                    <Badge
+                                                                        key={tagKey.id}
+                                                                        variant="outline"
+                                                                        className="bg-blue-50 cursor-pointer hover:bg-blue-100"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            setTagFilters(prev => [
+                                                                                ...prev,
+                                                                                {
+                                                                                    tagKeyId: tagKey.id,
+                                                                                    operator: tagKey.tag_type === 'text' ? 'eq' : 'eq',
+                                                                                    value: value
+                                                                                }
+                                                                            ]);
+                                                                        }}
+                                                                    >
+                                                                        {tagKey.name}: {value}
+                                                                    </Badge>
+                                                                );
+                                                            })}
+                                                            {ticket.tags.keys.filter(key =>
+                                                                ticket.tags.values.date.has(key.id) ||
+                                                                ticket.tags.values.number.has(key.id) ||
+                                                                ticket.tags.values.text.has(key.id)
+                                                            ).length > 4 && (
+                                                                    <Badge
+                                                                        variant="outline"
+                                                                        className="bg-gray-100 cursor-pointer hover:bg-gray-200"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            const tags = ticket.tags.keys
+                                                                                .map(key => {
+                                                                                    let value: string | null = null;
+                                                                                    switch (key.tag_type) {
+                                                                                        case 'date': {
+                                                                                            const dateStr = ticket.tags.values.date.get(key.id);
+                                                                                            if (dateStr) {
+                                                                                                const date = new Date(dateStr);
+                                                                                                value = formatDateTagValue(date);
+                                                                                            }
+                                                                                            break;
+                                                                                        }
+                                                                                        case 'number':
+                                                                                            value = ticket.tags.values.number.get(key.id) || null;
+                                                                                            break;
+                                                                                        case 'text':
+                                                                                            value = ticket.tags.values.text.get(key.id) || null;
+                                                                                            break;
+                                                                                    }
+                                                                                    if (value === null) return null;
+                                                                                    return { key, value };
+                                                                                })
+                                                                                .filter((tag): tag is { key: TicketTagKey; value: string } => tag !== null);
+                                                                            setSelectedTicketTags({
+                                                                                ticketId: ticket.id,
+                                                                                title: ticket.title,
+                                                                                tags
+                                                                            });
+                                                                        }}
+                                                                    >
+                                                                        +{ticket.tags.keys.filter(key =>
+                                                                            ticket.tags.values.date.has(key.id) ||
+                                                                            ticket.tags.values.number.has(key.id) ||
+                                                                            ticket.tags.values.text.has(key.id)
+                                                                        ).length - 4} more
+                                                                    </Badge>
+                                                                )}
+                                                        </div>
                                                     </div>
                                                     <div className="text-sm text-gray-500">
                                                         <p>Created {formatDateTime(ticket.created_at || '')}</p>
@@ -425,6 +500,41 @@ export default function Tickets() {
                     onSubmit={handleCreateTicket}
                     isLoading={isCreatingTicket}
                 />
+
+                <Dialog
+                    open={selectedTicketTags !== null}
+                    onOpenChange={(open) => {
+                        if (!open) setSelectedTicketTags(null);
+                    }}
+                >
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Tags for {selectedTicketTags?.title}</DialogTitle>
+                        </DialogHeader>
+                        <div className="flex flex-wrap gap-2">
+                            {selectedTicketTags?.tags.map((tag) => (
+                                <Badge
+                                    key={tag.key.id}
+                                    variant="outline"
+                                    className="bg-blue-50 cursor-pointer hover:bg-blue-100"
+                                    onClick={() => {
+                                        setTagFilters(prev => [
+                                            ...prev,
+                                            {
+                                                tagKeyId: tag.key.id,
+                                                operator: tag.key.tag_type === 'text' ? 'eq' : 'eq',
+                                                value: tag.value
+                                            }
+                                        ]);
+                                        setSelectedTicketTags(null);
+                                    }}
+                                >
+                                    {tag.key.name}: {tag.value}
+                                </Badge>
+                            ))}
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
         </div>
     )

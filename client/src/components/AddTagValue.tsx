@@ -87,10 +87,12 @@ export function AddTagValue({ tagKeys, onSubmit, onCancel, isSubmitting }: AddTa
                             variant="outline"
                             role="combobox"
                             aria-expanded={open}
-                            className="justify-between"
+                            className="justify-between w-full"
                             disabled={isSubmitting}
                         >
-                            {selectedKey ? selectedKey.name : "Select tag..."}
+                            <span className="truncate flex-1 text-left">
+                                {selectedKey ? selectedKey.name : "Select tag..."}
+                            </span>
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                     </PopoverTrigger>
