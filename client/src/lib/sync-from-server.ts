@@ -1,7 +1,7 @@
 import Dexie from 'dexie';
 import { db } from './db';
 import { supabase } from './supabase';
-import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation } from './db';
+import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation, TicketTagKey, TicketTagDateValue, TicketTagNumberValueWithNumber, TicketTagTextValue } from './db';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export const CURRENT_USER_KEY = 'currentUserId';
@@ -45,7 +45,11 @@ async function clearDatabase() {
         db.profileOrganizationMembers,
         db.tickets,
         db.ticketComments,
-        db.mutations
+        db.mutations,
+        db.ticketTagKeys,
+        db.ticketTagDateValues,
+        db.ticketTagNumberValues,
+        db.ticketTagTextValues
     ], async () => {
         await Promise.all([
             db.profiles.clear(),
@@ -53,7 +57,11 @@ async function clearDatabase() {
             db.profileOrganizationMembers.clear(),
             db.tickets.clear(),
             db.ticketComments.clear(),
-            db.mutations.clear()
+            db.mutations.clear(),
+            db.ticketTagKeys.clear(),
+            db.ticketTagDateValues.clear(),
+            db.ticketTagNumberValues.clear(),
+            db.ticketTagTextValues.clear()
         ]);
     });
 }
@@ -68,14 +76,22 @@ export async function syncFromServer() {
             membersTimestamp,
             ticketsTimestamp,
             commentsTimestamp,
-            invitationsTimestamp
+            invitationsTimestamp,
+            tagKeysTimestamp,
+            tagDateValuesTimestamp,
+            tagNumberValuesTimestamp,
+            tagTextValuesTimestamp
         ] = await Promise.all([
             getLatestTimestamp(db.profiles),
             getLatestTimestamp(db.organizations),
             getLatestTimestamp(db.profileOrganizationMembers),
             getLatestTimestamp(db.tickets),
             getLatestTimestamp(db.ticketComments),
-            getLatestTimestamp(db.organizationInvitations)
+            getLatestTimestamp(db.organizationInvitations),
+            getLatestTimestamp(db.ticketTagKeys),
+            getLatestTimestamp(db.ticketTagDateValues),
+            getLatestTimestamp(db.ticketTagNumberValues),
+            getLatestTimestamp(db.ticketTagTextValues)
         ]);
 
         // Fetch updated data from Supabase
@@ -85,7 +101,11 @@ export async function syncFromServer() {
             { data: members, error: membersError },
             { data: tickets, error: ticketsError },
             { data: comments, error: commentsError },
-            { data: invitations, error: invitationsError }
+            { data: invitations, error: invitationsError },
+            { data: tagKeys, error: tagKeysError },
+            { data: tagDateValues, error: tagDateValuesError },
+            { data: tagNumberValues, error: tagNumberValuesError },
+            { data: tagTextValues, error: tagTextValuesError }
         ] = await Promise.all([
             supabase
                 .from('profiles')
@@ -116,6 +136,26 @@ export async function syncFromServer() {
                 .from('organization_invitations')
                 .select('*')
                 .gte('updated_at', invitationsTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_tag_keys')
+                .select('*')
+                .gte('updated_at', tagKeysTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_tag_date_values')
+                .select('*')
+                .gte('updated_at', tagDateValuesTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_tag_number_values')
+                .select('*')
+                .gte('updated_at', tagNumberValuesTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_tag_text_values')
+                .select('*')
+                .gte('updated_at', tagTextValuesTimestamp)
                 .is('deleted_at', null)
         ]);
 
@@ -126,6 +166,10 @@ export async function syncFromServer() {
         if (ticketsError) throw ticketsError;
         if (commentsError) throw commentsError;
         if (invitationsError) throw invitationsError;
+        if (tagKeysError) throw tagKeysError;
+        if (tagDateValuesError) throw tagDateValuesError;
+        if (tagNumberValuesError) throw tagNumberValuesError;
+        if (tagTextValuesError) throw tagTextValuesError;
 
         // Update local DB
         await db.transaction('rw', [
@@ -134,7 +178,11 @@ export async function syncFromServer() {
             db.profileOrganizationMembers,
             db.tickets,
             db.ticketComments,
-            db.organizationInvitations
+            db.organizationInvitations,
+            db.ticketTagKeys,
+            db.ticketTagDateValues,
+            db.ticketTagNumberValues,
+            db.ticketTagTextValues
         ], async () => {
             // Use bulkPut to upsert records
             if (profiles?.length) {
@@ -154,6 +202,18 @@ export async function syncFromServer() {
             }
             if (invitations?.length) {
                 await db.organizationInvitations.bulkPut(invitations as OrganizationInvitation[]);
+            }
+            if (tagKeys?.length) {
+                await db.ticketTagKeys.bulkPut(tagKeys as TicketTagKey[]);
+            }
+            if (tagDateValues?.length) {
+                await db.ticketTagDateValues.bulkPut(tagDateValues as TicketTagDateValue[]);
+            }
+            if (tagNumberValues?.length) {
+                await db.ticketTagNumberValues.bulkPut(tagNumberValues as TicketTagNumberValueWithNumber[]);
+            }
+            if (tagTextValues?.length) {
+                await db.ticketTagTextValues.bulkPut(tagTextValues as TicketTagTextValue[]);
             }
         });
 
@@ -333,6 +393,50 @@ function setupRealtimeSync() {
                     await db.organizationInvitations.put(payload.new);
                 }
             } catch (error) {
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_tag_keys'
+        }, async (payload: RealtimePostgresChangesPayload<TicketTagKey>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketTagKeys.delete(payload.old.id);
+            } else {
+                await db.ticketTagKeys.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_tag_date_values'
+        }, async (payload: RealtimePostgresChangesPayload<TicketTagDateValue>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketTagDateValues.delete(payload.old.id);
+            } else {
+                await db.ticketTagDateValues.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_tag_number_values'
+        }, async (payload: RealtimePostgresChangesPayload<TicketTagNumberValueWithNumber>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketTagNumberValues.delete(payload.old.id);
+            } else {
+                await db.ticketTagNumberValues.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_tag_text_values'
+        }, async (payload: RealtimePostgresChangesPayload<TicketTagTextValue>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketTagTextValues.delete(payload.old.id);
+            } else {
+                await db.ticketTagTextValues.put(payload.new);
             }
         })
         .subscribe();
