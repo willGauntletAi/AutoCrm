@@ -745,7 +745,16 @@ async function deleteOrganizationInvitation(data: z.infer<typeof SyncInputSchema
 async function createTicketTagKey(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'create_ticket_tag_key' }, memberships: Record<string, string>): Promise<TableRow<'ticket_tag_keys'> | null> {
     // Check if user is an admin of the organization
     if (memberships[data.data.organization_id] !== 'admin') {
-        return null;
+        return {
+            id: data.data.id,
+            organization_id: data.data.organization_id,
+            name: data.data.name,
+            description: data.data.description,
+            tag_type: data.data.tag_type,
+            created_at: new Date(),
+            updated_at: new Date(),
+            deleted_at: new Date(),
+        };
     }
 
     try {

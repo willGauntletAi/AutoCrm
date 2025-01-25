@@ -34,7 +34,6 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '../lib/auth'
 import type { TicketTagKey } from '../lib/db'
-import { CreateTagDialog } from '../components/CreateTagDialog'
 import { AddTagValue } from '../components/AddTagValue'
 import { Plus } from 'lucide-react'
 import { formatDateTagValue, formatDateTime, parseYMDDateString } from '@/lib/utils'
@@ -57,7 +56,6 @@ export default function Ticket() {
     const [isCreatingComment, setIsCreatingComment] = useState(false)
     const [isUpdatingTicket, setIsUpdatingTicket] = useState(false)
     const [isUpdatingTags, setIsUpdatingTags] = useState(false)
-    const [isCreateTagDialogOpen, setIsCreateTagDialogOpen] = useState(false)
     const [isAddingTagValue, setIsAddingTagValue] = useState(false)
     const { user } = useAuth()
     const [isTagsOpen, setIsTagsOpen] = useState(false)
@@ -468,26 +466,9 @@ export default function Ticket() {
                                                 <ChevronDown className={`h-4 w-4 transition-transform ${isTagsOpen ? 'transform rotate-180' : ''}`} />
                                             </div>
                                         </CollapsibleTrigger>
-                                        {canEdit && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => setIsCreateTagDialogOpen(true)}
-                                            >
-                                                Create New Tag
-                                            </Button>
-                                        )}
                                     </div>
                                     <CollapsibleContent>
                                         <div className="space-y-2">
-                                            {isAddingTagValue && (
-                                                <AddTagValue
-                                                    tagKeys={getUnusedTagKeys()}
-                                                    onSubmit={handleAddTag}
-                                                    onCancel={() => setIsAddingTagValue(false)}
-                                                    isSubmitting={isUpdatingTags}
-                                                />
-                                            )}
                                             {/* Date tag values */}
                                             {Array.from(tagData.values.date.entries()).map(([tagKeyId, value]) => {
                                                 const tagKey = tagData.keys.find(k => k.id === tagKeyId)
@@ -648,6 +629,14 @@ export default function Ticket() {
                                                     <p className="text-sm text-gray-500">No tags defined</p>
                                                 </div>
                                             )}
+                                            {isAddingTagValue && (
+                                                <AddTagValue
+                                                    tagKeys={getUnusedTagKeys()}
+                                                    onSubmit={handleAddTag}
+                                                    onCancel={() => setIsAddingTagValue(false)}
+                                                    isSubmitting={isUpdatingTags}
+                                                />
+                                            )}
                                             {canEdit && !isAddingTagValue && getUnusedTagKeys().length > 0 && (
                                                 <div className="mt-4">
                                                     <Button
@@ -730,12 +719,6 @@ export default function Ticket() {
                     </div>
                 </div>
             </div>
-
-            <CreateTagDialog
-                open={isCreateTagDialogOpen}
-                onOpenChange={setIsCreateTagDialogOpen}
-                organizationId={organization_id!}
-            />
         </div>
     )
 } 
