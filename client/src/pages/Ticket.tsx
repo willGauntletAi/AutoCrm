@@ -33,7 +33,7 @@ import {
 } from '../lib/mutations'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '../lib/auth'
-import type { TicketTagKey } from '../lib/db'
+import type { TicketTagKey, Macro } from '../lib/db'
 import { AddTagValue } from '../components/AddTagValue'
 import { Plus } from 'lucide-react'
 import { formatDateTagValue, formatDateTime, parseYMDDateString } from '@/lib/utils'
@@ -57,6 +57,7 @@ export default function Ticket() {
     const [isUpdatingTicket, setIsUpdatingTicket] = useState(false)
     const [isUpdatingTags, setIsUpdatingTags] = useState(false)
     const [isAddingTagValue, setIsAddingTagValue] = useState(false)
+    const [isApplyingMacro, setIsApplyingMacro] = useState(false)
     const { user } = useAuth()
     const [isTagsOpen, setIsTagsOpen] = useState(false)
 
@@ -168,6 +169,104 @@ export default function Ticket() {
             }
         },
         [organization_id, ticket_id]
+    )
+
+    // Fetch available macros
+    const macros = useLiveQuery(
+        async () => {
+            if (!organization_id || !ticket || !tagData) return []
+
+            const allMacros = await db.macros
+                .where('organization_id')
+                .equals(organization_id)
+                .filter(macro => !macro.deleted_at)
+                .toArray()
+
+            // Filter macros based on requirements
+            return allMacros.filter(macro => {
+                const requirements = macro.macro.requirements
+
+                // Check ticket status requirement
+                if (requirements.status && requirements.status !== ticket.status) {
+                    return false
+                }
+
+                // Check ticket priority requirement
+                if (requirements.priority && requirements.priority !== ticket.priority) {
+                    return false
+                }
+
+                // Check created_at requirement
+                if (requirements.created_at) {
+                    const ticketCreatedAt = new Date(ticket.created_at || '').getTime()
+                    if (requirements.created_at.before && ticketCreatedAt >= requirements.created_at.before) {
+                        return false
+                    }
+                    if (requirements.created_at.after && ticketCreatedAt <= requirements.created_at.after) {
+                        return false
+                    }
+                }
+
+                // Check updated_at requirement
+                if (requirements.updated_at) {
+                    const ticketUpdatedAt = new Date(ticket.updated_at || '').getTime()
+                    if (requirements.updated_at.before && ticketUpdatedAt >= requirements.updated_at.before) {
+                        return false
+                    }
+                    if (requirements.updated_at.after && ticketUpdatedAt <= requirements.updated_at.after) {
+                        return false
+                    }
+                }
+
+                // Check date tag requirements
+                for (const [tagKeyId, requirement] of Object.entries(requirements.date_tag_requirements)) {
+                    const tagValue = tagData.values.date.get(tagKeyId)
+                    if (!tagValue) return false
+
+                    const valueDate = new Date(tagValue.value).getTime()
+                    const now = new Date().getTime()
+                    const dayInMs = 24 * 60 * 60 * 1000
+
+                    if (requirement.before !== undefined) {
+                        const beforeDate = now + (requirement.before * dayInMs)
+                        if (valueDate >= beforeDate) return false
+                    }
+                    if (requirement.after !== undefined) {
+                        const afterDate = now + (requirement.after * dayInMs)
+                        if (valueDate <= afterDate) return false
+                    }
+                    if (requirement.equals !== undefined) {
+                        const equalsDate = now + (Number(requirement.equals) * dayInMs)
+                        if (Math.abs(valueDate - equalsDate) > dayInMs) return false
+                    }
+                }
+
+                // Check number tag requirements
+                for (const [tagKeyId, requirement] of Object.entries(requirements.number_tag_requirements)) {
+                    const tagValue = tagData.values.number.get(tagKeyId)
+                    if (!tagValue) return false
+
+                    const value = Number(tagValue.value)
+                    if (requirement.min !== undefined && value < requirement.min) return false
+                    if (requirement.max !== undefined && value > requirement.max) return false
+                    if (requirement.equals !== undefined && value !== requirement.equals) return false
+                }
+
+                // Check text tag requirements
+                for (const [tagKeyId, requirement] of Object.entries(requirements.text_tag_requirements)) {
+                    const tagValue = tagData.values.text.get(tagKeyId)
+                    if (!tagValue) return false
+
+                    if (requirement.equals !== undefined && tagValue.value !== requirement.equals) return false
+                    if (requirement.contains !== undefined && !tagValue.value.includes(requirement.contains)) return false
+                    if (requirement.regex !== undefined && !new RegExp(requirement.regex).test(tagValue.value)) return false
+                }
+
+                return true
+            })
+        },
+        [organization_id, ticket, tagData],
+        []
     )
 
     const handleSubmitComment = async (e: React.FormEvent) => {
@@ -334,6 +433,120 @@ export default function Ticket() {
             setError(err instanceof Error ? err.message : `Failed to delete tag`)
         } finally {
             setIsUpdatingTags(false)
+        }
+    }
+
+    const handleApplyMacro = async (macro: Macro) => {
+        if (!ticket || !canEdit) return
+
+        try {
+            setIsApplyingMacro(true)
+            setError(null)
+
+            const macroData = macro.macro
+            const actions = macroData.actions
+
+            // Apply status change if specified
+            if (actions.new_status) {
+                await updateTicket(ticket.id, {
+                    status: actions.new_status
+                })
+            }
+
+            // Apply priority change if specified
+            if (actions.new_priority) {
+                await updateTicket(ticket.id, {
+                    priority: actions.new_priority
+                })
+            }
+
+            // Remove specified tags
+            for (const tagKeyId of actions.tag_keys_to_remove) {
+                const dateValue = tagData?.values.date.get(tagKeyId)
+                if (dateValue) {
+                    await deleteTicketTagDateValue(dateValue.id)
+                }
+                const numberValue = tagData?.values.number.get(tagKeyId)
+                if (numberValue) {
+                    await deleteTicketTagNumberValue(numberValue.id)
+                }
+                const textValue = tagData?.values.text.get(tagKeyId)
+                if (textValue) {
+                    await deleteTicketTagTextValue(textValue.id)
+                }
+            }
+
+            // Modify or add tags
+            const { date_tags, number_tags, text_tags } = actions.tags_to_modify
+
+            // Handle date tags
+            for (const [tagKeyId, value] of Object.entries(date_tags)) {
+                const existingValue = tagData?.values.date.get(tagKeyId)
+                const date = new Date()
+                date.setDate(date.getDate() + Number(value))
+
+                if (existingValue) {
+                    await updateTicketTagDateValue(existingValue.id, {
+                        value: date
+                    })
+                } else {
+                    await createTicketTagDateValue({
+                        id: crypto.randomUUID(),
+                        ticket_id: ticket_id!,
+                        tag_key_id: tagKeyId,
+                        value: date
+                    })
+                }
+            }
+
+            // Handle number tags
+            for (const [tagKeyId, value] of Object.entries(number_tags)) {
+                const existingValue = tagData?.values.number.get(tagKeyId)
+                if (existingValue) {
+                    await updateTicketTagNumberValue(existingValue.id, {
+                        value: value.toString()
+                    })
+                } else {
+                    await createTicketTagNumberValue({
+                        id: crypto.randomUUID(),
+                        ticket_id: ticket_id!,
+                        tag_key_id: tagKeyId,
+                        value: value.toString()
+                    })
+                }
+            }
+
+            // Handle text tags
+            for (const [tagKeyId, value] of Object.entries(text_tags)) {
+                const existingValue = tagData?.values.text.get(tagKeyId)
+                if (existingValue) {
+                    await updateTicketTagTextValue(existingValue.id, {
+                        value
+                    })
+                } else {
+                    await createTicketTagTextValue({
+                        id: crypto.randomUUID(),
+                        ticket_id: ticket_id!,
+                        tag_key_id: tagKeyId,
+                        value
+                    })
+                }
+            }
+
+            // Add comment if specified
+            if (actions.comment) {
+                await createTicketComment({
+                    id: crypto.randomUUID(),
+                    ticket_id: ticket_id!,
+                    comment: actions.comment,
+                    user_id: user!.id,
+                })
+            }
+
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to apply macro')
+        } finally {
+            setIsApplyingMacro(false)
         }
     }
 
@@ -664,6 +877,30 @@ export default function Ticket() {
                 </div>
 
                 <div className="space-y-4">
+                    {/* Add macro section above comment form */}
+                    {canEdit && macros.length > 0 && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Available Macros</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex flex-wrap gap-2">
+                                    {macros.map((macro) => (
+                                        <Button
+                                            key={macro.id}
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleApplyMacro(macro)}
+                                            disabled={isApplyingMacro}
+                                        >
+                                            {macro.macro.name}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
                     <form onSubmit={handleSubmitComment} className="space-y-4">
                         <RichTextEditor
                             content={newComment}
