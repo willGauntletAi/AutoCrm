@@ -7,14 +7,26 @@ import { Button } from '../components/ui/button';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import CreateMacroDialog from '../components/CreateMacroDialog';
-import { deleteMacro } from '../lib/mutations';
+import { deleteMacro, deleteTicketTagKey } from '../lib/mutations';
 import { CreateTagDialog } from '@/components/CreateTagDialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "../components/ui/alert-dialog"
 
 export default function AdminPage() {
     const { organization_id } = useParams<{ organization_id: string }>();
     const { user } = useAuth();
     const [isCreateMacroOpen, setIsCreateMacroOpen] = useState(false);
     const [isCreateTagOpen, setIsCreateTagOpen] = useState(false);
+    const [tagToDelete, setTagToDelete] = useState<{ id: string; name: string } | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     // Check if user is admin
     const userRole = useLiveQuery(
@@ -59,6 +71,16 @@ export default function AdminPage() {
         []
     );
 
+    const handleDeleteTag = async () => {
+        if (!tagToDelete) return;
+        try {
+            await deleteTicketTagKey(tagToDelete.id);
+            setTagToDelete(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to delete tag');
+        }
+    };
+
     if (!organization_id) {
         return (
             <div className="min-h-screen p-4">
@@ -80,6 +102,11 @@ export default function AdminPage() {
             <div className="max-w-4xl mx-auto">
                 <div className="mb-8">
                     <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+                    {error && (
+                        <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-md">
+                            {error}
+                        </div>
+                    )}
                 </div>
 
                 <div className="space-y-6">
@@ -136,6 +163,15 @@ export default function AdminPage() {
                                                         <p className="text-sm text-gray-400 mt-1">
                                                             Type: {tag.tag_type}
                                                         </p>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="sm"
+                                                            onClick={() => setTagToDelete({ id: tag.id, name: tag.name })}
+                                                        >
+                                                            Delete
+                                                        </Button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -212,6 +248,21 @@ export default function AdminPage() {
                         </CardContent>
                     </Card>
                 </div>
+
+                <AlertDialog open={tagToDelete !== null} onOpenChange={(open: boolean) => !open && setTagToDelete(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Tag</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Are you sure you want to delete the tag "{tagToDelete?.name}"? This will remove the tag from all tickets.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteTag}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
         </div>
     );

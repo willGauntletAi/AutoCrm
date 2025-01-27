@@ -565,19 +565,22 @@ export async function updateTicketTagKey(id: string, data: Partial<Omit<TicketTa
     await syncToServer();
 }
 
-export async function deleteTicketTagKey(id: string): Promise<void> {
-    const timestamp = new Date().toISOString();
-    await db.transaction('rw', [db.mutations, db.ticketTagKeys], async () => {
+export async function deleteTicketTagKey(id: string) {
+    const now = new Date().toISOString()
+    await db.transaction('rw', [db.ticketTagKeys, db.mutations], async () => {
+        // Mark the tag key as deleted
+        await db.ticketTagKeys.update(id, {
+            deleted_at: now,
+            updated_at: now
+        })
+
+        // Add mutation to sync queue
         await queueMutation({
             operation: 'delete_ticket_tag_key',
-            data: { id },
-        });
-        await db.ticketTagKeys.update(id, {
-            deleted_at: timestamp,
-            updated_at: timestamp
-        });
-    });
-    await syncToServer();
+            data: { id }
+        })
+    })
+    await syncToServer()
 }
 
 // Tag Value operations
