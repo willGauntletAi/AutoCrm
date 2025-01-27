@@ -616,6 +616,7 @@ export interface TicketTagDateValues {
 export interface TicketTagEnumOptions {
   created_at: Generated<Timestamp>;
   deleted_at: Timestamp | null;
+  description: string | null;
   id: Generated<string>;
   tag_key_id: string;
   updated_at: Generated<Timestamp>;

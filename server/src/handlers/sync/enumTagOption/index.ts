@@ -29,6 +29,7 @@ export async function updateEnumTagOption(data: z.infer<typeof SyncInputSchema>[
         const updated = await db.updateTable('ticket_tag_enum_options')
             .set({
                 value: data.data.value,
+                description: data.data.description,
                 updated_at: new Date().toISOString(),
             })
             .where('id', '=', data.data.id)
@@ -65,6 +66,7 @@ export async function createEnumTagOption(data: z.infer<typeof SyncInputSchema>[
                 id: data.data.id,
                 tag_key_id: data.data.tag_key_id,
                 value: data.data.value,
+                description: data.data.description,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             })
@@ -86,6 +88,7 @@ export async function createEnumTagOption(data: z.infer<typeof SyncInputSchema>[
             id: data.data.id,
             tag_key_id: data.data.tag_key_id,
             value: data.data.value,
+            description: data.data.description,
             created_at: now,
             updated_at: now,
             deleted_at: now,
