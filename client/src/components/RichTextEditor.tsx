@@ -5,6 +5,7 @@ import { Button } from './ui/button'
 import { Bold, Italic, Link as LinkIcon, List, ListOrdered } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import DOMPurify from 'dompurify'
+import { useEffect } from 'react'
 
 interface RichTextEditorProps {
     content: string
@@ -45,6 +46,13 @@ export function RichTextEditor({ content, onChange, disabled, className }: RichT
             onChange(sanitizedHtml)
         }
     })
+
+    // Update editor content when content prop changes
+    useEffect(() => {
+        if (editor && editor.getHTML() !== content) {
+            editor.commands.setContent(DOMPurify.sanitize(content, purifyConfig))
+        }
+    }, [editor, content])
 
     if (!editor) {
         return null
