@@ -5,6 +5,8 @@ import { AuthUser } from '../../utils/auth';
 import { createTextTagValue, deleteTextTagValue, updateTextTagValue } from './textTagValue';
 import { createNumberTagValue, deleteNumberTagValue, updateNumberTagValue } from './numberTagValue';
 import { createDateTagValue, deleteDateTagValue, updateDateTagValue } from './dateTagValue';
+import { createEnumTagValue, deleteEnumTagValue, updateEnumTagValue } from './enumTagValue';
+import { createEnumTagOption, deleteEnumTagOption, updateEnumTagOption } from './enumTagOption';
 import { createMacro, deleteMacro, updateMacro } from './macros';
 
 interface Context {
@@ -27,6 +29,8 @@ interface SyncResponse {
     ticket_tag_date_values?: TableRow<'ticket_tag_date_values'>[];
     ticket_tag_number_values?: TableRow<'ticket_tag_number_values'>[];
     ticket_tag_text_values?: TableRow<'ticket_tag_text_values'>[];
+    ticket_tag_enum_options?: TableRow<'ticket_tag_enum_options'>[];
+    ticket_tag_enum_values?: TableRow<'ticket_tag_enum_values'>[];
     macros?: TableRow<'macros'>[];
 }
 
@@ -1146,6 +1150,58 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
                 if (result) {
                     response.macros = response.macros || [];
                     response.macros.push(result);
+                }
+                break;
+            }
+
+            // Enum tag option operations
+            case 'create_ticket_tag_enum_option': {
+                const result = await createEnumTagOption(operation, memberships);
+                if (result) {
+                    response.ticket_tag_enum_options = response.ticket_tag_enum_options || [];
+                    response.ticket_tag_enum_options.push(result);
+                }
+                break;
+            }
+            case 'update_ticket_tag_enum_option': {
+                const result = await updateEnumTagOption(operation, memberships);
+                if (result) {
+                    response.ticket_tag_enum_options = response.ticket_tag_enum_options || [];
+                    response.ticket_tag_enum_options.push(result);
+                }
+                break;
+            }
+            case 'delete_ticket_tag_enum_option': {
+                const result = await deleteEnumTagOption(operation, memberships);
+                if (result) {
+                    response.ticket_tag_enum_options = response.ticket_tag_enum_options || [];
+                    response.ticket_tag_enum_options.push(result);
+                }
+                break;
+            }
+
+            // Enum tag value operations
+            case 'create_ticket_tag_enum_value': {
+                const result = await createEnumTagValue(operation, memberships);
+                if (result) {
+                    response.ticket_tag_enum_values = response.ticket_tag_enum_values || [];
+                    response.ticket_tag_enum_values.push(result);
+                }
+                break;
+            }
+            case 'update_ticket_tag_enum_value': {
+                const result = await updateEnumTagValue(operation, memberships);
+                if (result) {
+                    response.ticket_tag_enum_values = response.ticket_tag_enum_values || [];
+                    response.ticket_tag_enum_values.push(result);
+                }
+                break;
+            }
+            case 'delete_ticket_tag_enum_value': {
+                const result = await deleteEnumTagValue(operation, memberships);
+                if (result) {
+                    response.ticket_tag_enum_values = response.ticket_tag_enum_values || [];
+                    response.ticket_tag_enum_values.push(result);
                 }
                 break;
             }

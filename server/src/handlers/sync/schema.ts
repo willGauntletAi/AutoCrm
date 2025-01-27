@@ -60,7 +60,7 @@ export const TicketTagKeySchema = z.object({
     organization_id: z.string().uuid(),
     name: z.string(),
     description: z.string().nullable(),
-    tag_type: z.enum(['date', 'number', 'text']),
+    tag_type: z.enum(['date', 'number', 'text', 'enum']),
 });
 
 export const TicketTagDateValueSchema = z.object({
@@ -82,6 +82,20 @@ export const TicketTagTextValueSchema = z.object({
     ticket_id: z.string().uuid(),
     tag_key_id: z.string().uuid(),
     value: z.string(),
+});
+
+// Add new schemas for enum tags
+export const TicketTagEnumOptionSchema = z.object({
+    id: z.string().uuid(),
+    tag_key_id: z.string().uuid(),
+    value: z.string(),
+});
+
+export const TicketTagEnumValueSchema = z.object({
+    id: z.string().uuid(),
+    ticket_id: z.string().uuid(),
+    tag_key_id: z.string().uuid(),
+    enum_option_id: z.string().uuid(),
 });
 
 // Macro Schemas
@@ -268,6 +282,32 @@ export const SyncOperationSchema = z.discriminatedUnion('operation', [
         data: z.object({ id: z.string().uuid() })
     }),
 
+    // Add new operations for enum tags
+    z.object({
+        operation: z.literal('create_ticket_tag_enum_option'),
+        data: TicketTagEnumOptionSchema
+    }),
+    z.object({
+        operation: z.literal('update_ticket_tag_enum_option'),
+        data: TicketTagEnumOptionSchema
+    }),
+    z.object({
+        operation: z.literal('delete_ticket_tag_enum_option'),
+        data: z.object({ id: z.string().uuid() })
+    }),
+    z.object({
+        operation: z.literal('create_ticket_tag_enum_value'),
+        data: TicketTagEnumValueSchema
+    }),
+    z.object({
+        operation: z.literal('update_ticket_tag_enum_value'),
+        data: TicketTagEnumValueSchema
+    }),
+    z.object({
+        operation: z.literal('delete_ticket_tag_enum_value'),
+        data: z.object({ id: z.string().uuid() })
+    }),
+
     // Macro operations
     z.object({
         operation: z.literal('create_macro'),
@@ -287,5 +327,5 @@ export const SyncInputSchema = z.array(SyncOperationSchema);
 
 export type SyncInput = z.infer<typeof SyncInputSchema>;
 export type TableRow<T extends TableName> = Selectable<DB[T]>;
-export type TableName = keyof Pick<DB, 'profiles' | 'organizations' | 'profile_organization_members' | 'tickets' | 'ticket_comments' | 'organization_invitations' | 'ticket_tag_keys' | 'ticket_tag_date_values' | 'ticket_tag_number_values' | 'ticket_tag_text_values' | 'macros'>;
+export type TableName = keyof Pick<DB, 'profiles' | 'organizations' | 'profile_organization_members' | 'tickets' | 'ticket_comments' | 'organization_invitations' | 'ticket_tag_keys' | 'ticket_tag_date_values' | 'ticket_tag_number_values' | 'ticket_tag_text_values' | 'ticket_tag_enum_options' | 'ticket_tag_enum_values' | 'macros'>;
 
