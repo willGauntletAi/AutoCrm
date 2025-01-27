@@ -4,11 +4,12 @@ import { db } from '../lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../lib/auth';
 import { Button } from '../components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import CreateMacroDialog from '../components/CreateMacroDialog';
 import { deleteMacro, deleteTicketTagKey } from '../lib/mutations';
 import { CreateTagDialog } from '@/components/CreateTagDialog';
+import { EditTagDialog } from '@/components/EditTagDialog';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -25,6 +26,7 @@ export default function AdminPage() {
     const { user } = useAuth();
     const [isCreateMacroOpen, setIsCreateMacroOpen] = useState(false);
     const [isCreateTagOpen, setIsCreateTagOpen] = useState(false);
+    const [tagToEdit, setTagToEdit] = useState<string | null>(null);
     const [tagToDelete, setTagToDelete] = useState<{ id: string; name: string } | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -166,6 +168,15 @@ export default function AdminPage() {
                                                     </div>
                                                     <div className="flex gap-2">
                                                         <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setTagToEdit(tag.id)}
+                                                            className="flex items-center gap-2"
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                            Edit
+                                                        </Button>
+                                                        <Button
                                                             variant="destructive"
                                                             size="sm"
                                                             onClick={() => setTagToDelete({ id: tag.id, name: tag.name })}
@@ -264,6 +275,13 @@ export default function AdminPage() {
                     </AlertDialogContent>
                 </AlertDialog>
             </div>
+
+            <EditTagDialog
+                open={tagToEdit !== null}
+                onOpenChange={(open) => !open && setTagToEdit(null)}
+                tagId={tagToEdit || ''}
+                onSuccess={() => setTagToEdit(null)}
+            />
         </div>
     );
 } 
