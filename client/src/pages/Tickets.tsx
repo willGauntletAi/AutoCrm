@@ -21,7 +21,7 @@ import {
 
 type TagFilter = {
     tagKeyId: string;
-    operator: 'eq' | 'lt' | 'gt' | 'prefix';
+    operator: 'eq' | 'lt' | 'gt' | 'prefix' | 'neq';
     value: string;
 }
 
@@ -126,6 +126,24 @@ export default function Tickets() {
                                 .map(v => v.ticket_id)
                             break
                         }
+                        case 'enum': {
+                            const enumValues = await db.ticketTagEnumValues
+                                .where('tag_key_id')
+                                .equals(filter.tagKeyId)
+                                .filter(v => !v.deleted_at)
+                                .toArray()
+
+                            matchingTickets = enumValues
+                                .filter(v => {
+                                    switch (filter.operator) {
+                                        case 'eq': return v.enum_option_id === filter.value
+                                        case 'neq': return v.enum_option_id !== filter.value
+                                        default: return false
+                                    }
+                                })
+                                .map(v => v.ticket_id)
+                            break
+                        }
                     }
 
                     // For the first filter, add all matching tickets
@@ -192,7 +210,7 @@ export default function Tickets() {
                 date: new Map<string, string>(),
                 number: new Map<string, string>(),
                 text: new Map<string, string>(),
-                enum: new Map<string, string>()
+                enum: new Map<string, { value: string; optionId: string }>()
             }]))
 
             // Populate the tag values maps
@@ -222,7 +240,10 @@ export default function Tickets() {
                 const ticketTags = tagValuesByTicket.get(v.ticket_id)
                 const enumOption = enumOptionsMap.get(v.enum_option_id)
                 if (ticketTags && enumOption) {
-                    ticketTags.enum.set(v.tag_key_id, enumOption.value)
+                    ticketTags.enum.set(v.tag_key_id, {
+                        value: enumOption.value,
+                        optionId: enumOption.id
+                    })
                 }
             })
 
@@ -427,9 +448,11 @@ export default function Tickets() {
                                                                     case 'text':
                                                                         value = ticket.tags.values.text.get(tagKey.id) || null;
                                                                         break;
-                                                                    case 'enum':
-                                                                        value = ticket.tags.values.enum.get(tagKey.id) || null;
+                                                                    case 'enum': {
+                                                                        const enumValue = ticket.tags.values.enum.get(tagKey.id);
+                                                                        value = enumValue?.value || null;
                                                                         break;
+                                                                    }
                                                                 }
                                                                 if (value === null) return null;
 
@@ -447,8 +470,11 @@ export default function Tickets() {
                                                                                 ...prev,
                                                                                 {
                                                                                     tagKeyId: tagKey.id,
-                                                                                    operator: tagKey.tag_type === 'text' ? 'eq' : 'eq',
-                                                                                    value: value
+                                                                                    operator: tagKey.tag_type === 'text' ? 'eq' :
+                                                                                        tagKey.tag_type === 'enum' ? 'eq' : 'eq',
+                                                                                    value: tagKey.tag_type === 'enum' ?
+                                                                                        ticket.tags.values.enum.get(tagKey.id)?.optionId || '' :
+                                                                                        value
                                                                                 }
                                                                             ]);
                                                                         }}
@@ -550,8 +576,11 @@ export default function Tickets() {
                                             ...prev,
                                             {
                                                 tagKeyId: tag.key.id,
-                                                operator: tag.key.tag_type === 'text' ? 'eq' : 'eq',
-                                                value: tag.value
+                                                operator: tag.key.tag_type === 'text' ? 'eq' :
+                                                    tag.key.tag_type === 'enum' ? 'eq' : 'eq',
+                                                value: tag.key.tag_type === 'enum' ?
+                                                    tag.value :
+                                                    tag.value
                                             }
                                         ]);
                                         setSelectedTicketTags(null);
