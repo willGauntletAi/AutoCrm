@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from './ui/button';
 import {
     Dialog,
@@ -36,9 +36,6 @@ interface CreateMacroDialogProps {
 }
 
 type MacroData = z.infer<typeof MacroSchema>['macro'];
-
-type TagType = 'text' | 'number' | 'date' | 'enum';
-const TAG_TYPES: TagType[] = ['text', 'number', 'date', 'enum'];
 
 export default function CreateMacroDialog({ organizationId, trigger, open, onOpenChange }: CreateMacroDialogProps) {
     const [activeTab, setActiveTab] = useState('basic');
@@ -123,7 +120,7 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
         }
     };
 
-    const handleTagRequirementChange = (requirement: {
+    const handleTagRequirementChange = useCallback((requirement: {
         tagKeyId: string;
         type: 'date' | 'number' | 'text' | 'enum';
         values: {
@@ -208,10 +205,9 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
                     break;
             }
 
-            console.log('Updated requirements:', requirements); // Add this for debugging
             return { ...prev, requirements };
         });
-    };
+    }, []);
 
     return (
         <Dialog

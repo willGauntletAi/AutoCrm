@@ -16,7 +16,6 @@ import {
 } from "./ui/popover"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { TicketTagKey } from '../lib/db'
 import { Label } from './ui/label'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../lib/db'
@@ -52,10 +51,10 @@ export function AddTagAction({ tagKeys, excludeTagIds, onSubmit, onCancel }: Add
             return await db.ticketTagEnumOptions
                 .where('tag_key_id')
                 .equals(selectedTagKey)
-                .filter(opt => !opt.deleted_at)
+                .filter(opt => !opt.deleted_at && !excludeTagIds.includes(opt.id))
                 .toArray()
         },
-        [selectedTagKey, selectedTag?.tag_type],
+        [selectedTagKey, selectedTag?.tag_type, excludeTagIds],
         []
     )
 

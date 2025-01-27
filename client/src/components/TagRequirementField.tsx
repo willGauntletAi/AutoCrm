@@ -110,7 +110,7 @@ export function TagRequirementField({ organizationId, onDelete, excludeTagIds = 
                 values: processedValues
             });
         }
-    }, [selectedTagKey, selectedTag, values, onChange]);
+    }, [selectedTagKey, selectedTag?.tag_type, values]);
 
     // Handle tag selection
     const handleTagSelect = (tagKey: string) => {
