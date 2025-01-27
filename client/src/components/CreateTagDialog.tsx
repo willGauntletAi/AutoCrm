@@ -18,9 +18,16 @@ import {
     SelectValue,
 } from "./ui/select"
 import { createTicketTagKey } from '../lib/mutations'
+import { createTicketTagEnumOption } from '../lib/mutations'
+import { PlusCircle, X } from 'lucide-react'
 
-const TAG_TYPES = ['text', 'number', 'date'] as const
+const TAG_TYPES = ['text', 'number', 'date', 'enum'] as const
 type TagType = typeof TAG_TYPES[number]
+
+interface EnumValue {
+    value: string
+    description: string | null
+}
 
 interface CreateTagDialogProps {
     open: boolean
@@ -33,6 +40,7 @@ export function CreateTagDialog({ open, onOpenChange, organizationId, onSuccess 
     const [name, setName] = useState('')
     const [description, setDescription] = useState('')
     const [type, setType] = useState<TagType>('text')
+    const [enumValues, setEnumValues] = useState<EnumValue[]>([{ value: '', description: null }])
     const [isCreating, setIsCreating] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -43,17 +51,41 @@ export function CreateTagDialog({ open, onOpenChange, organizationId, onSuccess 
         try {
             setIsCreating(true)
             setError(null)
+
+            // Create the tag key first
+            const tagKeyId = crypto.randomUUID()
             await createTicketTagKey({
-                id: crypto.randomUUID(),
+                id: tagKeyId,
                 organization_id: organizationId,
                 name: name.trim(),
                 description: description.trim() || null,
                 tag_type: type,
             })
+
+            // If it's an enum type, create the enum options
+            if (type === 'enum') {
+                const validEnumValues = enumValues.filter(ev => ev.value.trim())
+                if (validEnumValues.length === 0) {
+                    throw new Error('At least one enum value is required')
+                }
+
+                await Promise.all(
+                    validEnumValues.map(ev =>
+                        createTicketTagEnumOption({
+                            id: crypto.randomUUID(),
+                            tag_key_id: tagKeyId,
+                            value: ev.value.trim(),
+                            description: ev.description?.trim() || null,
+                        })
+                    )
+                )
+            }
+
             onOpenChange(false)
             setName('')
             setDescription('')
             setType('text')
+            setEnumValues([{ value: '', description: null }])
             onSuccess?.()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create tag')
@@ -62,9 +94,25 @@ export function CreateTagDialog({ open, onOpenChange, organizationId, onSuccess 
         }
     }
 
+    const addEnumValue = () => {
+        setEnumValues([...enumValues, { value: '', description: null }])
+    }
+
+    const updateEnumValue = (index: number, field: keyof EnumValue, value: string) => {
+        const newValues = [...enumValues]
+        newValues[index] = { ...newValues[index], [field]: value || null }
+        setEnumValues(newValues)
+    }
+
+    const removeEnumValue = (index: number) => {
+        if (enumValues.length > 1) {
+            setEnumValues(enumValues.filter((_, i) => i !== index))
+        }
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Create New Tag</DialogTitle>
                     <DialogDescription>
@@ -110,10 +158,60 @@ export function CreateTagDialog({ open, onOpenChange, organizationId, onSuccess 
                             </SelectContent>
                         </Select>
                     </div>
+                    {type === 'enum' && (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <Label>Enum Values</Label>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={addEnumValue}
+                                    className="flex items-center gap-2"
+                                >
+                                    <PlusCircle className="h-4 w-4" />
+                                    Add Value
+                                </Button>
+                            </div>
+                            <div className="space-y-4">
+                                {enumValues.map((enumValue, index) => (
+                                    <div key={index} className="flex gap-4 items-start">
+                                        <div className="flex-1 space-y-2">
+                                            <Label>Value</Label>
+                                            <Input
+                                                value={enumValue.value}
+                                                onChange={(e) => updateEnumValue(index, 'value', e.target.value)}
+                                                placeholder="e.g. High, Medium, Low"
+                                            />
+                                        </div>
+                                        <div className="flex-1 space-y-2">
+                                            <Label>Description (optional)</Label>
+                                            <Input
+                                                value={enumValue.description || ''}
+                                                onChange={(e) => updateEnumValue(index, 'description', e.target.value)}
+                                                placeholder="Description of this value"
+                                            />
+                                        </div>
+                                        {enumValues.length > 1 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => removeEnumValue(index)}
+                                                className="mt-8"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     <DialogFooter>
                         <Button
                             type="submit"
-                            disabled={isCreating || !name.trim()}
+                            disabled={isCreating || !name.trim() || (type === 'enum' && !enumValues.some(ev => ev.value.trim()))}
                         >
                             {isCreating ? 'Creating...' : 'Create Tag'}
                         </Button>

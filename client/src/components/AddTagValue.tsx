@@ -14,9 +14,18 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "./ui/popover"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "./ui/select"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { TicketTagKey } from '../lib/db'
+import { db } from '../lib/db'
+import { useLiveQuery } from 'dexie-react-hooks'
 
 interface AddTagValueProps {
     tagKeys: TicketTagKey[]
@@ -29,6 +38,19 @@ export function AddTagValue({ tagKeys, onSubmit, onCancel, isSubmitting }: AddTa
     const [open, setOpen] = useState(false)
     const [selectedKey, setSelectedKey] = useState<TicketTagKey | null>(null)
     const [value, setValue] = useState('')
+
+    // Fetch enum options when an enum tag is selected
+    const enumOptions = useLiveQuery(
+        async () => {
+            if (!selectedKey || selectedKey.tag_type !== 'enum') return []
+            return await db.ticketTagEnumOptions
+                .where('tag_key_id')
+                .equals(selectedKey.id)
+                .filter(opt => !opt.deleted_at)
+                .toArray()
+        },
+        [selectedKey]
+    )
 
     // Reset value when tag key changes
     useEffect(() => {
@@ -74,6 +96,25 @@ export function AddTagValue({ tagKeys, onSubmit, onCancel, isSubmitting }: AddTa
                         className="w-[200px]"
                         disabled={isSubmitting}
                     />
+                )
+            case 'enum':
+                return (
+                    <Select
+                        value={value}
+                        onValueChange={setValue}
+                        disabled={isSubmitting}
+                    >
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Select value..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {enumOptions?.map(option => (
+                                <SelectItem key={option.id} value={option.id}>
+                                    {option.value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 )
         }
     }

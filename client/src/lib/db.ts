@@ -11,6 +11,8 @@ import {
     TicketTagDateValueSchema as ServerTicketTagDateValueSchema,
     TicketTagNumberValueSchema as ServerTicketTagNumberValueSchema,
     TicketTagTextValueSchema as ServerTicketTagTextValueSchema,
+    TicketTagEnumOptionSchema as ServerTicketTagEnumOptionSchema,
+    TicketTagEnumValueSchema as ServerTicketTagEnumValueSchema,
     MacroSchema as ServerMacroSchema,
     SyncOperationSchema,
 } from '../../../server/src/handlers/sync/schema';
@@ -33,6 +35,8 @@ export const TicketTagKeySchema = ServerTicketTagKeySchema.extend(TimestampField
 export const TicketTagDateValueSchema = ServerTicketTagDateValueSchema.extend(TimestampFieldsSchema.shape);
 export const TicketTagNumberValueSchema = ServerTicketTagNumberValueSchema.extend(TimestampFieldsSchema.shape);
 export const TicketTagTextValueSchema = ServerTicketTagTextValueSchema.extend(TimestampFieldsSchema.shape);
+export const TicketTagEnumOptionSchema = ServerTicketTagEnumOptionSchema.extend(TimestampFieldsSchema.shape);
+export const TicketTagEnumValueSchema = ServerTicketTagEnumValueSchema.extend(TimestampFieldsSchema.shape);
 export const MacroSchema = ServerMacroSchema.extend(TimestampFieldsSchema.shape);
 
 // Create a modified version of TicketTagNumberValueSchema with number value
@@ -85,6 +89,8 @@ export type TicketTagDateValue = z.infer<typeof TicketTagDateValueSchema>;
 export type TicketTagNumberValueWithNumber = z.infer<typeof TicketTagNumberValueWithNumberSchema>;
 export type TicketTagNumberValue = z.infer<typeof TicketTagNumberValueSchema>;
 export type TicketTagTextValue = z.infer<typeof TicketTagTextValueSchema>;
+export type TicketTagEnumOption = z.infer<typeof TicketTagEnumOptionSchema>;
+export type TicketTagEnumValue = z.infer<typeof TicketTagEnumValueSchema>;
 export type Macro = z.infer<typeof MacroSchema>;
 
 // Define database class
@@ -101,6 +107,8 @@ export class AutoCRMDatabase extends Dexie {
     ticketTagDateValues!: Table<TicketTagDateValueWithDate>;
     ticketTagNumberValues!: Table<TicketTagNumberValueWithNumber>;
     ticketTagTextValues!: Table<TicketTagTextValue>;
+    ticketTagEnumOptions!: Table<TicketTagEnumOption>;
+    ticketTagEnumValues!: Table<TicketTagEnumValue>;
     macros!: Table<Macro>;
 
     constructor() {
@@ -118,6 +126,8 @@ export class AutoCRMDatabase extends Dexie {
             ticketTagDateValues: '&id, ticket_id, tag_key_id, value, created_at, updated_at',
             ticketTagNumberValues: '&id, ticket_id, tag_key_id, value, created_at, updated_at',
             ticketTagTextValues: '&id, ticket_id, tag_key_id, value, created_at, updated_at',
+            ticketTagEnumOptions: '&id, tag_key_id, value, created_at, updated_at',
+            ticketTagEnumValues: '&id, ticket_id, tag_key_id, enum_option_id, created_at, updated_at',
             macros: '&id, organization_id, created_at, updated_at',
         });
 
@@ -204,6 +214,20 @@ export class AutoCRMDatabase extends Dexie {
         });
         this.ticketTagTextValues.hook('updating', (mods) => {
             TicketTagTextValueSchema.partial().parse(mods);
+        });
+
+        this.ticketTagEnumOptions.hook('creating', (_, obj) => {
+            TicketTagEnumOptionSchema.parse(obj);
+        });
+        this.ticketTagEnumOptions.hook('updating', (mods) => {
+            TicketTagEnumOptionSchema.partial().parse(mods);
+        });
+
+        this.ticketTagEnumValues.hook('creating', (_, obj) => {
+            TicketTagEnumValueSchema.parse(obj);
+        });
+        this.ticketTagEnumValues.hook('updating', (mods) => {
+            TicketTagEnumValueSchema.partial().parse(mods);
         });
 
         this.macros.hook('creating', (_, obj) => {

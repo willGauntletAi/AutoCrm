@@ -154,7 +154,7 @@ export default function Tickets() {
             const ticketIds = ticketsList.map(t => t.id)
 
             // Fetch all tag values for these tickets
-            const [dateValues, numberValues, textValues] = await Promise.all([
+            const [dateValues, numberValues, textValues, enumValues] = await Promise.all([
                 db.ticketTagDateValues
                     .where('ticket_id')
                     .anyOf(ticketIds)
@@ -169,14 +169,30 @@ export default function Tickets() {
                     .where('ticket_id')
                     .anyOf(ticketIds)
                     .filter(v => !v.deleted_at)
+                    .toArray(),
+                db.ticketTagEnumValues
+                    .where('ticket_id')
+                    .anyOf(ticketIds)
+                    .filter(v => !v.deleted_at)
                     .toArray()
             ])
+
+            // Fetch enum options for all enum values
+            const enumOptions = await db.ticketTagEnumOptions
+                .where('id')
+                .anyOf(enumValues.map(v => v.enum_option_id))
+                .filter(opt => !opt.deleted_at)
+                .toArray()
+
+            // Create a map of enum options by ID for quick lookup
+            const enumOptionsMap = new Map(enumOptions.map(opt => [opt.id, opt]))
 
             // Create a map of tag values by ticket ID
             const tagValuesByTicket = new Map(ticketIds.map(id => [id, {
                 date: new Map<string, string>(),
                 number: new Map<string, string>(),
-                text: new Map<string, string>()
+                text: new Map<string, string>(),
+                enum: new Map<string, string>()
             }]))
 
             // Populate the tag values maps
@@ -202,6 +218,14 @@ export default function Tickets() {
                 }
             })
 
+            enumValues.forEach(v => {
+                const ticketTags = tagValuesByTicket.get(v.ticket_id)
+                const enumOption = enumOptionsMap.get(v.enum_option_id)
+                if (ticketTags && enumOption) {
+                    ticketTags.enum.set(v.tag_key_id, enumOption.value)
+                }
+            })
+
             // Return both tickets and tag keys
             return {
                 tickets: ticketsList.map(ticket => ({
@@ -211,7 +235,8 @@ export default function Tickets() {
                         values: tagValuesByTicket.get(ticket.id) || {
                             date: new Map(),
                             number: new Map(),
-                            text: new Map()
+                            text: new Map(),
+                            enum: new Map()
                         }
                     }
                 })),
@@ -401,6 +426,9 @@ export default function Tickets() {
                                                                         break;
                                                                     case 'text':
                                                                         value = ticket.tags.values.text.get(tagKey.id) || null;
+                                                                        break;
+                                                                    case 'enum':
+                                                                        value = ticket.tags.values.enum.get(tagKey.id) || null;
                                                                         break;
                                                                 }
                                                                 if (value === null) return null;

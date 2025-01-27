@@ -13,7 +13,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { db, MacroSchema } from '../lib/db';
+import { db, MacroSchema, TicketTagEnumOption } from '../lib/db';
 import { createMacro } from '../lib/mutations';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -37,6 +37,9 @@ interface CreateMacroDialogProps {
 
 type MacroData = z.infer<typeof MacroSchema>['macro'];
 
+type TagType = 'text' | 'number' | 'date' | 'enum';
+const TAG_TYPES: TagType[] = ['text', 'number', 'date', 'enum'];
+
 export default function CreateMacroDialog({ organizationId, trigger, open, onOpenChange }: CreateMacroDialogProps) {
     const [activeTab, setActiveTab] = useState('basic');
     const [formData, setFormData] = useState<MacroData>({
@@ -46,6 +49,7 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
             date_tag_requirements: {},
             number_tag_requirements: {},
             text_tag_requirements: {},
+            enum_tag_requirements: {},
             created_at: undefined,
             updated_at: undefined,
             status: undefined,
@@ -56,7 +60,8 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
             tags_to_modify: {
                 date_tags: {},
                 number_tags: {},
-                text_tags: {}
+                text_tags: {},
+                enum_tags: {}
             },
             comment: undefined,
             new_status: undefined,
@@ -79,6 +84,26 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
         []
     );
 
+    // Fetch enum options for tag keys
+    const enumOptions = useLiveQuery(
+        async () => {
+            const options = await db.ticketTagEnumOptions
+                .filter(opt => !opt.deleted_at)
+                .toArray();
+
+            // Group options by tag key ID
+            return options.reduce((acc, option) => {
+                if (!acc[option.tag_key_id]) {
+                    acc[option.tag_key_id] = [];
+                }
+                acc[option.tag_key_id].push(option);
+                return acc;
+            }, {} as Record<string, TicketTagEnumOption[]>);
+        },
+        [],
+        {} as Record<string, TicketTagEnumOption[]>
+    );
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -96,6 +121,96 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
         } catch (error) {
             console.error('Error creating macro:', error);
         }
+    };
+
+    const handleTagRequirementChange = (requirement: {
+        tagKeyId: string;
+        type: 'date' | 'number' | 'text' | 'enum';
+        values: {
+            before?: number;
+            after?: number;
+            min?: number;
+            max?: number;
+            equals?: string;
+            contains?: string;
+            regex?: string;
+            enumComparison?: 'equal' | 'not_equal';
+            enumValues?: string[];
+        };
+    }, requirementId: string) => {
+        const { tagKeyId, type, values } = requirement;
+        // Update the tag requirement's tagKeyId
+        setTagRequirements(prev =>
+            prev.map(r =>
+                r.id === requirementId ? { ...r, tagKeyId } : r
+            )
+        );
+
+        setFormData(prev => {
+            // Remove any existing requirements for this tag key
+            const {
+                [tagKeyId]: _,
+                ...dateReqs
+            } = prev.requirements.date_tag_requirements;
+            const {
+                [tagKeyId]: __,
+                ...numberReqs
+            } = prev.requirements.number_tag_requirements;
+            const {
+                [tagKeyId]: ___,
+                ...textReqs
+            } = prev.requirements.text_tag_requirements;
+            const {
+                [tagKeyId]: ____,
+                ...enumReqs
+            } = prev.requirements.enum_tag_requirements;
+
+            // Add the new requirement
+            const requirements = {
+                ...prev.requirements,
+                date_tag_requirements: dateReqs,
+                number_tag_requirements: numberReqs,
+                text_tag_requirements: textReqs,
+                enum_tag_requirements: enumReqs,
+            };
+
+            switch (type) {
+                case 'date':
+                    requirements.date_tag_requirements[tagKeyId] = {
+                        before: values.before,
+                        after: values.after,
+                        equals: values.equals
+                    };
+                    break;
+                case 'number':
+                    requirements.number_tag_requirements[tagKeyId] = {
+                        min: values.min,
+                        max: values.max,
+                        equals: values.equals ? parseFloat(values.equals) : undefined
+                    };
+                    break;
+                case 'text':
+                    requirements.text_tag_requirements[tagKeyId] = {
+                        equals: values.equals,
+                        contains: values.contains,
+                        regex: values.regex
+                    };
+                    break;
+                case 'enum':
+                    if (values.enumComparison === 'equal' && values.enumValues?.[0]) {
+                        requirements.enum_tag_requirements[tagKeyId] = values.enumValues[0];
+                    } else if (values.enumComparison === 'not_equal' && values.enumValues?.length) {
+                        requirements.enum_tag_requirements[tagKeyId] = values.enumValues;
+                    } else {
+                        // If no valid values, remove the requirement
+                        delete requirements.enum_tag_requirements[tagKeyId];
+                    }
+                    break;
+            }
+
+            console.log('Updated requirements:', requirements); // Add this for debugging
+            return { ...prev, requirements };
+        });
     };
 
     return (
@@ -177,63 +292,7 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
                                                     setTagRequirements(prev => prev.filter(r => r.id !== req.id));
                                                 }}
                                                 onChange={requirement => {
-                                                    const { tagKeyId, type, values } = requirement;
-                                                    // Update the tag requirement's tagKeyId
-                                                    setTagRequirements(prev =>
-                                                        prev.map(r =>
-                                                            r.id === req.id ? { ...r, tagKeyId } : r
-                                                        )
-                                                    );
-
-                                                    setFormData(prev => {
-                                                        // Remove any existing requirements for this tag key
-                                                        const {
-                                                            [tagKeyId]: _,
-                                                            ...dateReqs
-                                                        } = prev.requirements.date_tag_requirements;
-                                                        const {
-                                                            [tagKeyId]: __,
-                                                            ...numberReqs
-                                                        } = prev.requirements.number_tag_requirements;
-                                                        const {
-                                                            [tagKeyId]: ___,
-                                                            ...textReqs
-                                                        } = prev.requirements.text_tag_requirements;
-
-                                                        // Add the new requirement
-                                                        const requirements = {
-                                                            ...prev.requirements,
-                                                            date_tag_requirements: dateReqs,
-                                                            number_tag_requirements: numberReqs,
-                                                            text_tag_requirements: textReqs,
-                                                        };
-
-                                                        switch (type) {
-                                                            case 'date':
-                                                                requirements.date_tag_requirements[tagKeyId] = {
-                                                                    before: values.before,
-                                                                    after: values.after,
-                                                                    equals: values.equals
-                                                                };
-                                                                break;
-                                                            case 'number':
-                                                                requirements.number_tag_requirements[tagKeyId] = {
-                                                                    min: values.min,
-                                                                    max: values.max,
-                                                                    equals: values.equals ? parseFloat(values.equals) : undefined
-                                                                };
-                                                                break;
-                                                            case 'text':
-                                                                requirements.text_tag_requirements[tagKeyId] = {
-                                                                    equals: values.equals,
-                                                                    contains: values.contains,
-                                                                    regex: values.regex
-                                                                };
-                                                                break;
-                                                        }
-
-                                                        return { ...prev, requirements };
-                                                    });
+                                                    handleTagRequirementChange(requirement, req.id);
                                                 }}
                                             />
                                         ))}
@@ -379,7 +438,8 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
                                                 excludeTagIds={[
                                                     ...Object.keys(formData.actions.tags_to_modify.date_tags),
                                                     ...Object.keys(formData.actions.tags_to_modify.number_tags),
-                                                    ...Object.keys(formData.actions.tags_to_modify.text_tags)
+                                                    ...Object.keys(formData.actions.tags_to_modify.text_tags),
+                                                    ...Object.keys(formData.actions.tags_to_modify.enum_tags)
                                                 ]}
                                                 onSubmit={(tagKey, value) => {
                                                     setFormData(prev => {
@@ -393,6 +453,9 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
                                                                 break;
                                                             case 'text':
                                                                 actions.tags_to_modify.text_tags[tagKey.id] = value;
+                                                                break;
+                                                            case 'enum':
+                                                                actions.tags_to_modify.enum_tags[tagKey.id] = value;
                                                                 break;
                                                         }
                                                         return { ...prev, actions };
@@ -482,6 +545,37 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
                                                                             tags_to_modify: {
                                                                                 ...prev.actions.tags_to_modify,
                                                                                 text_tags: rest
+                                                                            }
+                                                                        }
+                                                                    };
+                                                                });
+                                                            }}
+                                                        >
+                                                            Remove
+                                                        </Button>
+                                                    </div>
+                                                );
+                                            })}
+                                            {Object.entries(formData.actions.tags_to_modify.enum_tags).map(([tagId, optionId]) => {
+                                                const tag = tagKeys.find(k => k.id === tagId);
+                                                const option = enumOptions[tagId]?.find(o => o.id === optionId);
+                                                if (!tag || !option) return null;
+                                                return (
+                                                    <div key={tagId} className="flex items-center justify-between gap-2 p-2 border rounded">
+                                                        <span>{tag.name}: {option.value}</span>
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setFormData(prev => {
+                                                                    const { [tagId]: _, ...rest } = prev.actions.tags_to_modify.enum_tags;
+                                                                    return {
+                                                                        ...prev,
+                                                                        actions: {
+                                                                            ...prev.actions,
+                                                                            tags_to_modify: {
+                                                                                ...prev.actions.tags_to_modify,
+                                                                                enum_tags: rest
                                                                             }
                                                                         }
                                                                     };

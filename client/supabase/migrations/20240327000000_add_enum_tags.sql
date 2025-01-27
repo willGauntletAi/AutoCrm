@@ -8,6 +8,7 @@ create table ticket_tag_enum_options (
     id uuid primary key default uuid_generate_v4(),
     tag_key_id uuid not null references ticket_tag_keys(id) on delete cascade,
     value text not null,
+    description text,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     deleted_at timestamptz,

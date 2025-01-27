@@ -14,6 +14,8 @@ import {
     type TicketTagDateValueWithDate,
     type TicketTagNumberValue,
     type TicketTagTextValue,
+    type TicketTagEnumOption,
+    type TicketTagEnumValue,
     type Mutation,
     type Macro
 } from './db';
@@ -416,6 +418,28 @@ export async function applyMutation(operation: Operation): Promise<void> {
         case 'update_organization_invitation':
             await db.organizationInvitations.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
             break;
+
+        case 'create_ticket_tag_enum_option':
+        case 'update_ticket_tag_enum_option':
+            await db.ticketTagEnumOptions.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
+            break;
+
+        case 'delete_ticket_tag_enum_option':
+            await db.ticketTagEnumOptions.update(operation.data.id, {
+                deleted_at: new Date().toISOString(),
+            });
+            break;
+
+        case 'create_ticket_tag_enum_value':
+        case 'update_ticket_tag_enum_value':
+            await db.ticketTagEnumValues.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
+            break;
+
+        case 'delete_ticket_tag_enum_value':
+            await db.ticketTagEnumValues.update(operation.data.id, {
+                deleted_at: new Date().toISOString(),
+            });
+            break;
     }
 }
 
@@ -444,6 +468,8 @@ export async function syncToServer(): Promise<void> {
                 db.ticketTagDateValues,
                 db.ticketTagNumberValues,
                 db.ticketTagTextValues,
+                db.ticketTagEnumOptions,
+                db.ticketTagEnumValues,
                 db.mutations
             ], async () => {
                 if (result.profiles?.length) {
@@ -482,6 +508,12 @@ export async function syncToServer(): Promise<void> {
                 }
                 if (result.ticket_tag_text_values?.length) {
                     await db.ticketTagTextValues.bulkPut(result.ticket_tag_text_values);
+                }
+                if (result.ticket_tag_enum_options?.length) {
+                    await db.ticketTagEnumOptions.bulkPut(result.ticket_tag_enum_options);
+                }
+                if (result.ticket_tag_enum_values?.length) {
+                    await db.ticketTagEnumValues.bulkPut(result.ticket_tag_enum_values);
                 }
 
                 await markMutationsSynced(unsyncedMutations.map(m => m.id!));
@@ -762,6 +794,116 @@ export async function deleteMacro(id: string): Promise<void> {
             data: { id },
         });
         await db.macros.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
+    });
+    await syncToServer();
+}
+
+// Enum Tag Option operations
+export async function createTicketTagEnumOption(data: Omit<TicketTagEnumOption, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const optionData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.ticketTagEnumOptions], async () => {
+        await queueMutation({
+            operation: 'create_ticket_tag_enum_option',
+            data: optionData,
+        });
+        await db.ticketTagEnumOptions.put(optionData);
+    });
+    await syncToServer();
+}
+
+export async function updateTicketTagEnumOption(id: string, data: Partial<Omit<TicketTagEnumOption, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagEnumOptions], async () => {
+        const existing = await db.ticketTagEnumOptions.get(id);
+        if (!existing) {
+            throw new Error(`Ticket Tag Enum Option ${id} not found`);
+        }
+        const optionData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_ticket_tag_enum_option',
+            data: optionData,
+        });
+        await db.ticketTagEnumOptions.update(id, optionData);
+    });
+    await syncToServer();
+}
+
+export async function deleteTicketTagEnumOption(id: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagEnumOptions], async () => {
+        await queueMutation({
+            operation: 'delete_ticket_tag_enum_option',
+            data: { id },
+        });
+        await db.ticketTagEnumOptions.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
+    });
+    await syncToServer();
+}
+
+// Enum Tag Value operations
+export async function createTicketTagEnumValue(data: Omit<TicketTagEnumValue, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const valueData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.ticketTagEnumValues], async () => {
+        await queueMutation({
+            operation: 'create_ticket_tag_enum_value',
+            data: valueData,
+        });
+        await db.ticketTagEnumValues.put(valueData);
+    });
+    await syncToServer();
+}
+
+export async function updateTicketTagEnumValue(id: string, data: Partial<Omit<TicketTagEnumValue, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagEnumValues], async () => {
+        const existing = await db.ticketTagEnumValues.get(id);
+        if (!existing) {
+            throw new Error(`Ticket Tag Enum Value ${id} not found`);
+        }
+        const valueData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_ticket_tag_enum_value',
+            data: valueData,
+        });
+        await db.ticketTagEnumValues.update(id, valueData);
+    });
+    await syncToServer();
+}
+
+export async function deleteTicketTagEnumValue(id: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketTagEnumValues], async () => {
+        await queueMutation({
+            operation: 'delete_ticket_tag_enum_value',
+            data: { id },
+        });
+        await db.ticketTagEnumValues.update(id, {
             deleted_at: timestamp,
             updated_at: timestamp
         });

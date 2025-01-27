@@ -89,6 +89,7 @@ export const TicketTagEnumOptionSchema = z.object({
     id: z.string().uuid(),
     tag_key_id: z.string().uuid(),
     value: z.string(),
+    description: z.string().nullable(),
 });
 
 export const TicketTagEnumValueSchema = z.object({
@@ -116,6 +117,10 @@ export const MacroRequirementsSchema = z.object({
         contains: z.string().optional(),
         regex: z.string().optional()
     })),
+    enum_tag_requirements: z.record(z.string().uuid(), z.union([
+        z.string().uuid(), // Single enum option ID - must match this value
+        z.array(z.string().uuid()) // Array of enum option IDs - must not match any of these values
+    ])),
     // Ticket field requirements
     created_at: z.object({
         before: z.number().optional(),
@@ -134,7 +139,8 @@ export const MacroActionSchema = z.object({
     tags_to_modify: z.object({
         date_tags: z.record(z.string().uuid(), z.number()),
         number_tags: z.record(z.string().uuid(), z.number()),
-        text_tags: z.record(z.string().uuid(), z.string())
+        text_tags: z.record(z.string().uuid(), z.string()),
+        enum_tags: z.record(z.string().uuid(), z.string().uuid()) // Maps tag key ID to enum option ID
     }),
     comment: z.string().optional(),
     new_status: z.string().optional(),

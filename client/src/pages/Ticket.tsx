@@ -24,12 +24,15 @@ import {
     createTicketTagDateValue,
     createTicketTagNumberValue,
     createTicketTagTextValue,
+    createTicketTagEnumValue,
     updateTicketTagDateValue,
     updateTicketTagNumberValue,
     updateTicketTagTextValue,
+    updateTicketTagEnumValue,
     deleteTicketTagDateValue,
     deleteTicketTagNumberValue,
-    deleteTicketTagTextValue
+    deleteTicketTagTextValue,
+    deleteTicketTagEnumValue
 } from '../lib/mutations'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '../lib/auth'
@@ -65,11 +68,13 @@ export default function Ticket() {
     const [editedValues, setEditedValues] = useState<{
         date: Map<string, string>,
         number: Map<string, string>,
-        text: Map<string, string>
+        text: Map<string, string>,
+        enum: Map<string, string>
     }>({
         date: new Map(),
         number: new Map(),
-        text: new Map()
+        text: new Map(),
+        enum: new Map()
     })
 
     const ticket = useLiveQuery(
@@ -159,12 +164,40 @@ export default function Ticket() {
                 .filter(value => !value.deleted_at)
                 .toArray()
 
+            const enumValues = await db.ticketTagEnumValues
+                .where('ticket_id')
+                .equals(ticket_id)
+                .filter(value => !value.deleted_at)
+                .toArray()
+
+            // Fetch all enum options for all enum tag keys
+            const enumTagKeys = tagKeys.filter(key => key.tag_type === 'enum')
+            const enumOptions = await db.ticketTagEnumOptions
+                .where('tag_key_id')
+                .anyOf(enumTagKeys.map(key => key.id))
+                .filter(opt => !opt.deleted_at)
+                .toArray()
+
+            // Create maps for quick lookups
+            const enumOptionsMap = new Map(enumOptions.map(opt => [opt.id, opt]))
+            const enumOptionsByTagKey = new Map(
+                enumTagKeys.map(key => [
+                    key.id,
+                    enumOptions.filter(opt => opt.tag_key_id === key.id)
+                ])
+            )
+
             return {
                 keys: tagKeys,
                 values: {
                     date: new Map(dateValues.map(v => [v.tag_key_id, v])),
                     number: new Map(numberValues.map(v => [v.tag_key_id, v])),
-                    text: new Map(textValues.map(v => [v.tag_key_id, v]))
+                    text: new Map(textValues.map(v => [v.tag_key_id, v])),
+                    enum: new Map(enumValues.map(v => [v.tag_key_id, {
+                        ...v,
+                        option: enumOptionsMap.get(v.enum_option_id),
+                        allOptions: enumOptionsByTagKey.get(v.tag_key_id) || []
+                    }]))
                 }
             }
         },
@@ -348,6 +381,15 @@ export default function Ticket() {
                     })
                     break
                 }
+                case 'enum': {
+                    await createTicketTagEnumValue({
+                        id: crypto.randomUUID(),
+                        ticket_id: ticket_id!,
+                        tag_key_id: tagKey.id,
+                        enum_option_id: value
+                    })
+                    break
+                }
             }
             setIsAddingTagValue(false)
         } catch (err) {
@@ -386,14 +428,19 @@ export default function Ticket() {
                         return
                     }
                     await updateTicketTagNumberValue(valueId, {
-                        // ts go away for now
-                        value: number as unknown as string
+                        value: number.toString()
                     })
                     break
                 }
                 case 'text': {
                     await updateTicketTagTextValue(valueId, {
                         value
+                    })
+                    break
+                }
+                case 'enum': {
+                    await updateTicketTagEnumValue(valueId, {
+                        enum_option_id: value
                     })
                     break
                 }
@@ -427,6 +474,9 @@ export default function Ticket() {
                     break
                 case 'text':
                     await deleteTicketTagTextValue(valueId)
+                    break
+                case 'enum':
+                    await deleteTicketTagEnumValue(valueId)
                     break
             }
         } catch (err) {
@@ -832,6 +882,66 @@ export default function Ticket() {
                                                         ) : (
                                                             <Badge variant="secondary">
                                                                 {value.value}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                            {/* Enum tag values */}
+                                            {Array.from(tagData.values.enum.entries()).map(([tagKeyId, value]) => {
+                                                const tagKey = tagData.keys.find(k => k.id === tagKeyId)
+                                                if (!tagKey || !value.option) return null
+
+                                                const isEdited = editedValues.enum.has(tagKey.id)
+                                                const editedValue = editedValues.enum.get(tagKey.id)
+
+                                                return (
+                                                    <div key={tagKey.id} className="flex items-center gap-2">
+                                                        <span className="text-sm text-gray-500 w-24 truncate" title={tagKey.name}>{tagKey.name}:</span>
+                                                        {canEdit ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <Select
+                                                                    value={editedValue || value.enum_option_id}
+                                                                    onValueChange={(newValue) => {
+                                                                        const newEditedValues = { ...editedValues }
+                                                                        newEditedValues.enum.set(tagKey.id, newValue)
+                                                                        setEditedValues(newEditedValues)
+                                                                    }}
+                                                                    disabled={isUpdatingTags}
+                                                                >
+                                                                    <SelectTrigger className="w-[200px]">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {value.allOptions.map(option => (
+                                                                            <SelectItem key={option.id} value={option.id}>
+                                                                                {option.value}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                {isEdited && (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => handleUpdateTag(tagKey, value.id)}
+                                                                        disabled={isUpdatingTags}
+                                                                    >
+                                                                        Save
+                                                                    </Button>
+                                                                )}
+                                                                <Button
+                                                                    variant="destructive"
+                                                                    size="sm"
+                                                                    onClick={() => handleDeleteTag(tagKey, value.id)}
+                                                                    disabled={isUpdatingTags}
+                                                                >
+                                                                    Delete
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <Badge variant="secondary">
+                                                                {value.option.value}
                                                             </Badge>
                                                         )}
                                                     </div>

@@ -5,6 +5,8 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { db } from '../lib/db';
 import type { TicketTagKey } from '../lib/db';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { Plus, X } from 'lucide-react';
 
 interface TagRequirementFieldProps {
     organizationId: string;
@@ -12,15 +14,17 @@ interface TagRequirementFieldProps {
     excludeTagIds?: string[];
     onChange: (requirement: {
         tagKeyId: string;
-        type: 'date' | 'number' | 'text';
+        type: 'date' | 'number' | 'text' | 'enum';
         values: {
             before?: number;
             after?: number;
-            equals?: string;
             min?: number;
             max?: number;
+            equals?: string;
             contains?: string;
             regex?: string;
+            enumComparison?: 'equal' | 'not_equal';
+            enumValues?: string[];
         };
     }) => void;
 }
@@ -29,14 +33,22 @@ export function TagRequirementField({ organizationId, onDelete, excludeTagIds = 
     const [tagKeys, setTagKeys] = useState<TicketTagKey[]>([]);
     const [selectedTagKey, setSelectedTagKey] = useState<string>('');
     const [values, setValues] = useState<{
-        before?: string;
-        after?: string;
+        before?: number;
+        after?: number;
+        min?: number;
+        max?: number;
         equals?: string;
-        min?: string;
-        max?: string;
         contains?: string;
         regex?: string;
-    }>({});
+        enumComparison?: 'equal' | 'not_equal';
+        enumValues?: string[];
+    }>({
+        enumComparison: 'equal',
+        enumValues: ['']
+    });
+
+    // Get selected tag
+    const selectedTag = tagKeys.find(k => k.id === selectedTagKey);
 
     // Load tag keys
     useEffect(() => {
@@ -48,43 +60,76 @@ export function TagRequirementField({ organizationId, onDelete, excludeTagIds = 
                 .toArray();
             setTagKeys(keys);
             if (keys.length > 0 && !selectedTagKey) {
-                setSelectedTagKey(keys[0].id);
+                const key = keys[0];
+                setSelectedTagKey(key.id);
+                if (key.tag_type === 'enum') {
+                    setValues({
+                        enumComparison: 'equal',
+                        enumValues: ['']
+                    });
+                } else {
+                    setValues({});
+                }
             }
         };
         loadTagKeys();
-    }, [organizationId, excludeTagIds, selectedTagKey]);
+    }, [organizationId, excludeTagIds]);
 
-    // Get selected tag key's type
-    const selectedTagType = tagKeys.find(k => k.id === selectedTagKey)?.tag_type;
+    // Fetch enum options for selected tag
+    const enumOptions = useLiveQuery(
+        async () => {
+            if (!selectedTagKey || selectedTag?.tag_type !== 'enum') return [];
+            return await db.ticketTagEnumOptions
+                .where('tag_key_id')
+                .equals(selectedTagKey)
+                .filter(opt => !opt.deleted_at)
+                .toArray();
+        },
+        [selectedTagKey, selectedTag?.tag_type],
+        []
+    );
 
     // Notify parent of changes
     useEffect(() => {
-        if (selectedTagKey) {
-            const tagKey = tagKeys.find(k => k.id === selectedTagKey);
-            if (tagKey) {
-                const processedValues = {
-                    before: values.before ? parseFloat(values.before) : undefined,
-                    after: values.after ? parseFloat(values.after) : undefined,
-                    equals: values.equals,
-                    min: values.min ? parseFloat(values.min) : undefined,
-                    max: values.max ? parseFloat(values.max) : undefined,
-                    contains: values.contains,
-                    regex: values.regex
-                };
+        if (selectedTagKey && selectedTag) {
+            const processedValues = {
+                before: values.before ? parseFloat(values.before.toString()) : undefined,
+                after: values.after ? parseFloat(values.after.toString()) : undefined,
+                min: values.min ? parseFloat(values.min.toString()) : undefined,
+                max: values.max ? parseFloat(values.max.toString()) : undefined,
+                equals: values.equals,
+                contains: values.contains,
+                regex: values.regex,
+                enumComparison: values.enumComparison,
+                enumValues: values.enumValues
+            };
 
-                onChange({
-                    tagKeyId: selectedTagKey,
-                    type: tagKey.tag_type,
-                    values: processedValues
-                });
-            }
+            onChange({
+                tagKeyId: selectedTagKey,
+                type: selectedTag.tag_type,
+                values: processedValues
+            });
         }
-    }, [selectedTagKey, values, onChange]);
+    }, [selectedTagKey, selectedTag, values, onChange]);
+
+    // Handle tag selection
+    const handleTagSelect = (tagKey: string) => {
+        setSelectedTagKey(tagKey);
+        const tag = tagKeys.find(k => k.id === tagKey);
+        if (tag?.tag_type === 'enum') {
+            setValues({
+                enumComparison: 'equal',
+                enumValues: ['']
+            });
+        } else {
+            setValues({});
+        }
+    };
 
     const renderInputs = () => {
-        if (!selectedTagType) return null;
+        if (!selectedTag?.tag_type) return null;
 
-        switch (selectedTagType) {
+        switch (selectedTag.tag_type) {
             case 'date':
                 return (
                     <div className="grid grid-cols-3 gap-4">
@@ -92,8 +137,8 @@ export function TagRequirementField({ organizationId, onDelete, excludeTagIds = 
                             <Label>Before (days)</Label>
                             <Input
                                 type="number"
-                                value={values.before || ''}
-                                onChange={e => setValues(prev => ({ ...prev, before: e.target.value }))}
+                                value={values.before?.toString() || ''}
+                                onChange={e => setValues(prev => ({ ...prev, before: parseFloat(e.target.value) }))}
                                 placeholder="e.g. 7 for a week"
                                 step="0.1"
                             />
@@ -102,8 +147,8 @@ export function TagRequirementField({ organizationId, onDelete, excludeTagIds = 
                             <Label>After (days)</Label>
                             <Input
                                 type="number"
-                                value={values.after || ''}
-                                onChange={e => setValues(prev => ({ ...prev, after: e.target.value }))}
+                                value={values.after?.toString() || ''}
+                                onChange={e => setValues(prev => ({ ...prev, after: parseFloat(e.target.value) }))}
                                 placeholder="e.g. -7 for a week ago"
                                 step="0.1"
                             />
@@ -127,16 +172,16 @@ export function TagRequirementField({ organizationId, onDelete, excludeTagIds = 
                             <Label>Minimum</Label>
                             <Input
                                 type="number"
-                                value={values.min || ''}
-                                onChange={e => setValues(prev => ({ ...prev, min: e.target.value }))}
+                                value={values.min?.toString() || ''}
+                                onChange={e => setValues(prev => ({ ...prev, min: parseFloat(e.target.value) }))}
                             />
                         </div>
                         <div>
                             <Label>Maximum</Label>
                             <Input
                                 type="number"
-                                value={values.max || ''}
-                                onChange={e => setValues(prev => ({ ...prev, max: e.target.value }))}
+                                value={values.max?.toString() || ''}
+                                onChange={e => setValues(prev => ({ ...prev, max: parseFloat(e.target.value) }))}
                             />
                         </div>
                         <div>
@@ -178,6 +223,121 @@ export function TagRequirementField({ organizationId, onDelete, excludeTagIds = 
                         </div>
                     </div>
                 );
+            case 'enum':
+                return (
+                    <div className="space-y-4">
+                        <div>
+                            <Label>Comparison</Label>
+                            <Select
+                                value={values.enumComparison || 'equal'}
+                                onValueChange={value => {
+                                    const newValues = {
+                                        ...values,
+                                        enumComparison: value as 'equal' | 'not_equal',
+                                        enumValues: value === 'equal' ?
+                                            [''] : // Initialize with empty value for equal to
+                                            (values.enumValues?.length ? values.enumValues : ['']) // Keep existing values or initialize with empty for not equal
+                                    };
+                                    setValues(newValues);
+                                    onChange({
+                                        tagKeyId: selectedTagKey,
+                                        type: 'enum',
+                                        values: newValues
+                                    });
+                                }}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="equal">Equal to</SelectItem>
+                                    <SelectItem value="not_equal">Not equal to</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                            {(values.enumValues || ['']).map((value, index) => (
+                                <div key={index} className="flex gap-2 items-center">
+                                    <div className="flex-1">
+                                        <Select
+                                            value={value}
+                                            onValueChange={newValue => {
+                                                const newValues = [...(values.enumValues || [''])];
+                                                newValues[index] = newValue;
+                                                const updatedValues = {
+                                                    ...values,
+                                                    enumValues: newValues
+                                                };
+                                                setValues(updatedValues);
+                                                onChange({
+                                                    tagKeyId: selectedTagKey,
+                                                    type: 'enum',
+                                                    values: updatedValues
+                                                });
+                                            }}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select value" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {enumOptions.map(option => (
+                                                    <SelectItem key={option.id} value={option.id}>
+                                                        {option.value}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {values.enumComparison === 'not_equal' && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => {
+                                                const newValues = {
+                                                    ...values,
+                                                    enumValues: values.enumValues?.filter((_, i) => i !== index)
+                                                };
+                                                setValues(newValues);
+                                                onChange({
+                                                    tagKeyId: selectedTagKey,
+                                                    type: 'enum',
+                                                    values: newValues
+                                                });
+                                            }}
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    )}
+                                </div>
+                            ))}
+
+                            {values.enumComparison === 'not_equal' && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full mt-2"
+                                    onClick={() => {
+                                        const newValues = {
+                                            ...values,
+                                            enumValues: [...(values.enumValues || []), '']
+                                        };
+                                        setValues(newValues);
+                                        onChange({
+                                            tagKeyId: selectedTagKey,
+                                            type: 'enum',
+                                            values: newValues
+                                        });
+                                    }}
+                                >
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Add Value
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                );
         }
     };
 
@@ -187,7 +347,7 @@ export function TagRequirementField({ organizationId, onDelete, excludeTagIds = 
                 <div className="space-y-4 flex-1">
                     <div>
                         <Label>Tag</Label>
-                        <Select value={selectedTagKey} onValueChange={setSelectedTagKey}>
+                        <Select value={selectedTagKey} onValueChange={handleTagSelect}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Select a tag" />
                             </SelectTrigger>
