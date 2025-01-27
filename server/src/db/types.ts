@@ -613,6 +613,25 @@ export interface TicketTagDateValues {
   value: Timestamp;
 }
 
+export interface TicketTagEnumOptions {
+  created_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  tag_key_id: string;
+  updated_at: Generated<Timestamp>;
+  value: string;
+}
+
+export interface TicketTagEnumValues {
+  created_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+  enum_option_id: string;
+  id: Generated<string>;
+  tag_key_id: string;
+  ticket_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface TicketTagKeys {
   created_at: Generated<Timestamp>;
   deleted_at: Timestamp | null;
@@ -714,6 +733,8 @@ export interface DB {
   "supabase_migrations.schema_migrations": SupabaseMigrationsSchemaMigrations;
   ticket_comments: TicketComments;
   ticket_tag_date_values: TicketTagDateValues;
+  ticket_tag_enum_options: TicketTagEnumOptions;
+  ticket_tag_enum_values: TicketTagEnumValues;
   ticket_tag_keys: TicketTagKeys;
   ticket_tag_number_values: TicketTagNumberValues;
   ticket_tag_text_values: TicketTagTextValues;

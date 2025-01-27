@@ -268,6 +268,93 @@ export type Database = {
           },
         ]
       }
+      ticket_tag_enum_options: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          id: string
+          tag_key_id: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          tag_key_id: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          tag_key_id?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_tag_enum_options_tag_key_id_fkey"
+            columns: ["tag_key_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_tag_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_tag_enum_values: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          enum_option_id: string
+          id: string
+          tag_key_id: string
+          ticket_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          enum_option_id: string
+          id?: string
+          tag_key_id: string
+          ticket_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          enum_option_id?: string
+          id?: string
+          tag_key_id?: string
+          ticket_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_tag_enum_values_enum_option_id_fkey"
+            columns: ["enum_option_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_tag_enum_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_tag_enum_values_tag_key_id_fkey"
+            columns: ["tag_key_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_tag_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_tag_enum_values_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_tag_keys: {
         Row: {
           created_at: string
