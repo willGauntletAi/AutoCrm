@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { Plus, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import CreateMacroDialog from '../components/CreateMacroDialog';
+import EditMacroDialog from '../components/EditMacroDialog';
 import { deleteMacro, deleteTicketTagKey } from '../lib/mutations';
 import { CreateTagDialog } from '@/components/CreateTagDialog';
 import { EditTagDialog } from '@/components/EditTagDialog';
@@ -233,9 +234,15 @@ export default function AdminPage() {
                                                         )}
                                                     </div>
                                                     <div className="flex gap-2">
-                                                        <Button variant="outline" size="sm">
-                                                            Edit
-                                                        </Button>
+                                                        <EditMacroDialog
+                                                            organizationId={organization_id}
+                                                            macroId={macro.id}
+                                                            trigger={
+                                                                <Button variant="outline" size="sm">
+                                                                    Edit
+                                                                </Button>
+                                                            }
+                                                        />
                                                         <Button
                                                             variant="destructive"
                                                             size="sm"

@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { useEffect } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -7,33 +7,42 @@ import {
     DialogTitle,
     DialogTrigger,
 } from './ui/dialog';
-import { createMacro } from '../lib/mutations';
+import { db, MacroSchema } from '../lib/db';
+import { updateMacro } from '../lib/mutations';
+import { useLiveQuery } from 'dexie-react-hooks';
 import type { z } from 'zod';
-import { MacroSchema } from '../lib/db';
 import MacroForm from './MacroForm';
 
-interface CreateMacroDialogProps {
+interface EditMacroDialogProps {
     organizationId: string;
+    macroId: string;
     trigger: React.ReactNode;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
 }
 
-export default function CreateMacroDialog({ organizationId, trigger, open, onOpenChange }: CreateMacroDialogProps) {
+export default function EditMacroDialog({ organizationId, macroId, trigger, open, onOpenChange }: EditMacroDialogProps) {
+    // Fetch the existing macro data
+    const macro = useLiveQuery(
+        async () => {
+            return await db.macros
+                .where('id')
+                .equals(macroId)
+                .filter(m => !m.deleted_at)
+                .first();
+        },
+        [macroId]
+    );
+
     const handleSubmit = async (data: z.infer<typeof MacroSchema>['macro']) => {
         try {
-            // Create macro using the mutations system
-            const macroId = uuidv4();
-            await createMacro({
-                id: macroId,
-                organization_id: organizationId,
-                macro: data
-            });
+            // Update macro using the mutations system
+            await updateMacro(macroId, { macro: data });
 
             // Close dialog
             onOpenChange?.(false);
         } catch (error) {
-            console.error('Error creating macro:', error);
+            console.error('Error updating macro:', error);
         }
     };
 
@@ -48,14 +57,15 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
             </DialogTrigger>
             <DialogContent className="max-w-3xl">
                 <DialogHeader>
-                    <DialogTitle>Create Macro</DialogTitle>
+                    <DialogTitle>Edit Macro</DialogTitle>
                     <DialogDescription>
-                        Create a new automation macro to update tickets based on conditions.
+                        Edit this automation macro to update tickets based on conditions.
                     </DialogDescription>
                 </DialogHeader>
 
                 <MacroForm
                     organizationId={organizationId}
+                    initialData={macro?.macro}
                     onSubmit={handleSubmit}
                     onCancel={() => onOpenChange?.(false)}
                 />
