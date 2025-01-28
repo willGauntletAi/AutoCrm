@@ -38,7 +38,6 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '../lib/auth'
 import type { TicketTagKey, Macro } from '../lib/db'
-import type { MacroRequirements } from '../../../server/src/types/macros'
 import { AddTagValue } from '../components/AddTagValue'
 import { Plus } from 'lucide-react'
 import { formatDateTagValue, formatDateTime, parseYMDDateString } from '@/lib/utils'
