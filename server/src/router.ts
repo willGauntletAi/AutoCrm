@@ -82,7 +82,8 @@ export const appRouter = router({
                 macroId: input.macroId,
                 ticketIds: input.ticketIds,
                 organizationId: input.organizationId,
-                userId: ctx.user.id
+                userId: ctx.user.id,
+                organizationRoles: ctx.user.organizations
             });
         }),
 });

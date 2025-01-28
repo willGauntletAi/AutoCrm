@@ -1,28 +1,30 @@
 import { TRPCError } from '@trpc/server';
 import { db } from '../../db';
-import { MacroData } from './types';
+import { MacroData, MacroDataSchema } from './types';
 
 interface ApplyMacroParams {
     macroId: string;
     ticketIds: string[];
     organizationId: string;
     userId: string;
+    organizationRoles: Record<string, string>;
 }
 
-export async function applyMacro({ macroId, ticketIds, organizationId, userId }: ApplyMacroParams) {
-    // First verify the user has access to the organization
-    const membership = await db
-        .selectFrom('profile_organization_members')
-        .selectAll()
-        .where('profile_id', '=', userId)
-        .where('organization_id', '=', organizationId)
-        .where('deleted_at', 'is', null)
-        .executeTakeFirst();
-
-    if (!membership) {
+export async function applyMacro({ macroId, ticketIds, organizationId, userId, organizationRoles }: ApplyMacroParams) {
+    // Verify the user has access to the organization
+    const userRole = organizationRoles[organizationId];
+    if (!userRole) {
         throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'You do not have access to this organization'
+        });
+    }
+
+    // Prevent customers from applying macros
+    if (userRole === 'customer') {
+        throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Customers cannot apply macros'
         });
     }
 
@@ -41,6 +43,16 @@ export async function applyMacro({ macroId, ticketIds, organizationId, userId }:
             message: 'Macro not found'
         });
     }
+
+    // Parse and validate the macro data
+    const parsedMacroResult = MacroDataSchema.safeParse(macro.macro);
+    if (!parsedMacroResult.success) {
+        throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid macro data structure'
+        });
+    }
+    const macroData = parsedMacroResult.data;
 
     // Get all tickets
     const tickets = await db
@@ -99,7 +111,6 @@ export async function applyMacro({ macroId, ticketIds, organizationId, userId }:
     }>);
 
     // Check requirements for each ticket
-    const macroData = macro.macro as MacroData;
     const requirements = macroData.requirements;
     const actions = macroData.actions;
     const timestamp = new Date().toISOString();
