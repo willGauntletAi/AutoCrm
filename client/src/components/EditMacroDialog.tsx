@@ -1,70 +1,53 @@
-import { useEffect } from 'react';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
-} from './ui/dialog';
-import { db, MacroSchema } from '../lib/db';
-import { updateMacro } from '../lib/mutations';
-import { useLiveQuery } from 'dexie-react-hooks';
-import type { z } from 'zod';
-import MacroForm from './MacroForm';
+} from "./ui/dialog"
+import MacroForm from './MacroForm'
+import { db } from '../lib/db'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { updateMacro } from '../lib/mutations'
 
 interface EditMacroDialogProps {
-    organizationId: string;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
     macroId: string;
-    trigger: React.ReactNode;
-    open?: boolean;
-    onOpenChange?: (open: boolean) => void;
+    organizationId: string;
 }
 
-export default function EditMacroDialog({ organizationId, macroId, trigger, open, onOpenChange }: EditMacroDialogProps) {
-    // Fetch the existing macro data
+export default function EditMacroDialog({ open, onOpenChange, macroId, organizationId }: EditMacroDialogProps) {
     const macro = useLiveQuery(
         async () => {
             return await db.macros
                 .where('id')
                 .equals(macroId)
-                .filter(m => !m.deleted_at)
+                .filter(macro => !macro.deleted_at)
                 .first();
         },
         [macroId]
     );
 
-    const handleSubmit = async (data: z.infer<typeof MacroSchema>['macro']) => {
-        try {
-            await updateMacro(macroId, { macro: data });
-            onOpenChange?.(false);
-        } catch (error) {
-            console.error('Error updating macro:', error);
-        }
-    };
+    if (!macro) {
+        return null;
+    }
 
     return (
-        <Dialog
-            open={open}
-            onOpenChange={onOpenChange}
-            modal={true}
-        >
-            <DialogTrigger asChild>
-                {trigger}
-            </DialogTrigger>
-            <DialogContent className="max-w-3xl">
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Edit Macro</DialogTitle>
-                    <DialogDescription>
-                        Edit this automation macro to update tickets based on conditions.
-                    </DialogDescription>
                 </DialogHeader>
-
                 <MacroForm
                     organizationId={organizationId}
-                    initialData={macro?.macro}
-                    onSubmit={handleSubmit}
-                    onCancel={() => onOpenChange?.(false)}
+                    initialData={macro.macro}
+                    onSubmit={async (data) => {
+                        await updateMacro(macroId, {
+                            macro: data
+                        });
+                        onOpenChange(false);
+                    }}
+                    onCancel={() => onOpenChange(false)}
                 />
             </DialogContent>
         </Dialog>

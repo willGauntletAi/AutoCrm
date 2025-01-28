@@ -236,19 +236,14 @@ export default function AdminPage() {
                                                     </div>
                                                     <div className="flex gap-2">
                                                         <EditMacroDialog
-                                                            organizationId={organization_id}
+                                                            organizationId={organization_id!}
                                                             macroId={macro.id}
-                                                            trigger={
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => setMacroToEdit(macro.id)}
-                                                                >
-                                                                    Edit
-                                                                </Button>
-                                                            }
                                                             open={macroToEdit === macro.id}
-                                                            onOpenChange={(open) => !open && setMacroToEdit(null)}
+                                                            onOpenChange={(open) => {
+                                                                if (!open) {
+                                                                    setMacroToEdit(null);
+                                                                }
+                                                            }}
                                                         />
                                                         <Button
                                                             variant="destructive"
