@@ -5,7 +5,7 @@ import { useParams, Link } from 'react-router-dom'
 import { Badge } from '../components/ui/badge'
 import { CreateTicketDialog } from '../components/CreateTicketDialog'
 import { db } from '../lib/db'
-import { createTicket } from '../lib/mutations'
+import { createTicket, applyMacroToTickets } from '../lib/mutations'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '@/lib/auth'
 import type { TicketTagKey } from '../lib/db'
@@ -18,6 +18,10 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
+import { Macro } from '../lib/db'
+import { CommandItem } from "@/components/ui/command"
+import { Check } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 type TagFilter = {
     tagKeyId: string;
@@ -38,6 +42,13 @@ export default function Tickets() {
         title: string;
         tags: Array<{ key: TicketTagKey; value: string }>;
     } | null>(null)
+    const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set())
+    const [isApplyingMacro, setIsApplyingMacro] = useState(false)
+    const [formData, setFormData] = useState({
+        aiActions: {
+            tagActions: [] as string[]
+        }
+    })
 
     const tickets = useLiveQuery(
         async () => {
@@ -298,6 +309,22 @@ export default function Tickets() {
             setIsCreatingTicket(false)
         }
     }
+
+    const handleApplyMacro = async (macro: Macro) => {
+        if (!selectedTickets.size) return;
+
+        try {
+            setIsApplyingMacro(true);
+            setError(null);
+
+            await applyMacroToTickets(macro.id, Array.from(selectedTickets), organization_id!);
+            setSelectedTickets(new Set());
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to apply macro');
+        } finally {
+            setIsApplyingMacro(false);
+        }
+    };
 
     if (!tickets) {
         return (

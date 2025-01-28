@@ -801,12 +801,12 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
                                     <Checkbox
                                         id="suggest-status"
                                         checked={formData.aiActions.shouldSuggestStatus}
-                                        onCheckedChange={(checked: boolean) =>
+                                        onCheckedChange={(checked) =>
                                             setFormData(prev => ({
                                                 ...prev,
                                                 aiActions: {
                                                     ...prev.aiActions,
-                                                    shouldSuggestStatus: checked
+                                                    shouldSuggestStatus: checked === true
                                                 }
                                             }))
                                         }
@@ -818,12 +818,12 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
                                     <Checkbox
                                         id="suggest-priority"
                                         checked={formData.aiActions.shouldSuggestPriority}
-                                        onCheckedChange={(checked: boolean) =>
+                                        onCheckedChange={(checked) =>
                                             setFormData(prev => ({
                                                 ...prev,
                                                 aiActions: {
                                                     ...prev.aiActions,
-                                                    shouldSuggestPriority: checked
+                                                    shouldSuggestPriority: checked === true
                                                 }
                                             }))
                                         }

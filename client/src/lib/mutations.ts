@@ -912,4 +912,12 @@ export async function deleteTicketTagEnumValue(id: string): Promise<void> {
         });
     });
     await syncToServer();
+}
+
+export async function applyMacroToTickets(macroId: string, ticketIds: string[], organizationId: string): Promise<string[]> {
+    await client.applyMacro.mutate({
+        macroId,
+        ticketIds,
+        organizationId
+    });
 } 

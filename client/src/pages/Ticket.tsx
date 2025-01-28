@@ -32,7 +32,8 @@ import {
     deleteTicketTagDateValue,
     deleteTicketTagNumberValue,
     deleteTicketTagTextValue,
-    deleteTicketTagEnumValue
+    deleteTicketTagEnumValue,
+    applyMacroToTickets
 } from '../lib/mutations'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '../lib/auth'
@@ -487,118 +488,19 @@ export default function Ticket() {
     }
 
     const handleApplyMacro = async (macro: Macro) => {
-        if (!ticket || !canEdit) return
+        if (!ticket || !canEdit) return;
 
         try {
-            setIsApplyingMacro(true)
-            setError(null)
+            setIsApplyingMacro(true);
+            setError(null);
 
-            const macroData = macro.macro
-            const actions = macroData.actions
-
-            // Apply status change if specified
-            if (actions.new_status) {
-                await updateTicket(ticket.id, {
-                    status: actions.new_status
-                })
-            }
-
-            // Apply priority change if specified
-            if (actions.new_priority) {
-                await updateTicket(ticket.id, {
-                    priority: actions.new_priority
-                })
-            }
-
-            // Remove specified tags
-            for (const tagKeyId of actions.tag_keys_to_remove) {
-                const dateValue = tagData?.values.date.get(tagKeyId)
-                if (dateValue) {
-                    await deleteTicketTagDateValue(dateValue.id)
-                }
-                const numberValue = tagData?.values.number.get(tagKeyId)
-                if (numberValue) {
-                    await deleteTicketTagNumberValue(numberValue.id)
-                }
-                const textValue = tagData?.values.text.get(tagKeyId)
-                if (textValue) {
-                    await deleteTicketTagTextValue(textValue.id)
-                }
-            }
-
-            // Modify or add tags
-            const { date_tags, number_tags, text_tags } = actions.tags_to_modify
-
-            // Handle date tags
-            for (const [tagKeyId, value] of Object.entries(date_tags)) {
-                const existingValue = tagData?.values.date.get(tagKeyId)
-                const date = new Date()
-                date.setDate(date.getDate() + Number(value))
-
-                if (existingValue) {
-                    await updateTicketTagDateValue(existingValue.id, {
-                        value: date
-                    })
-                } else {
-                    await createTicketTagDateValue({
-                        id: crypto.randomUUID(),
-                        ticket_id: ticket_id!,
-                        tag_key_id: tagKeyId,
-                        value: date
-                    })
-                }
-            }
-
-            // Handle number tags
-            for (const [tagKeyId, value] of Object.entries(number_tags)) {
-                const existingValue = tagData?.values.number.get(tagKeyId)
-                if (existingValue) {
-                    await updateTicketTagNumberValue(existingValue.id, {
-                        value: value.toString()
-                    })
-                } else {
-                    await createTicketTagNumberValue({
-                        id: crypto.randomUUID(),
-                        ticket_id: ticket_id!,
-                        tag_key_id: tagKeyId,
-                        value: value.toString()
-                    })
-                }
-            }
-
-            // Handle text tags
-            for (const [tagKeyId, value] of Object.entries(text_tags)) {
-                const existingValue = tagData?.values.text.get(tagKeyId)
-                if (existingValue) {
-                    await updateTicketTagTextValue(existingValue.id, {
-                        value
-                    })
-                } else {
-                    await createTicketTagTextValue({
-                        id: crypto.randomUUID(),
-                        ticket_id: ticket_id!,
-                        tag_key_id: tagKeyId,
-                        value
-                    })
-                }
-            }
-
-            // Add comment if specified
-            if (actions.comment) {
-                await createTicketComment({
-                    id: crypto.randomUUID(),
-                    ticket_id: ticket_id!,
-                    comment: actions.comment,
-                    user_id: user!.id,
-                })
-            }
-
+            await applyMacroToTickets(macro.id, [ticket.id], organization_id!);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to apply macro')
+            setError(err instanceof Error ? err.message : 'Failed to apply macro');
         } finally {
-            setIsApplyingMacro(false)
+            setIsApplyingMacro(false);
         }
-    }
+    };
 
     if (!ticket || !comments || !tagData) {
         return (

@@ -7,6 +7,7 @@ import { getProfile } from './handlers/profile';
 import { SyncInputSchema } from './handlers/sync/schema';
 import { sync } from './handlers/sync';
 import { acceptInvitation, acceptInvitationSchema } from './handlers/invitations';
+import { applyMacro } from './handlers/macros';
 
 export const appRouter = router({
     hello: procedure
@@ -68,6 +69,21 @@ export const appRouter = router({
         .input(acceptInvitationSchema)
         .mutation(({ input, ctx }) => {
             return acceptInvitation(input, ctx.user.id);
+        }),
+
+    applyMacro: authedProcedure
+        .input(z.object({
+            macroId: z.string().uuid(),
+            ticketIds: z.array(z.string().uuid()),
+            organizationId: z.string().uuid()
+        }))
+        .mutation(({ input, ctx }) => {
+            return applyMacro({
+                macroId: input.macroId,
+                ticketIds: input.ticketIds,
+                organizationId: input.organizationId,
+                userId: ctx.user.id
+            });
         }),
 });
 
