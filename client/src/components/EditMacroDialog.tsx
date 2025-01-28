@@ -36,10 +36,7 @@ export default function EditMacroDialog({ organizationId, macroId, trigger, open
 
     const handleSubmit = async (data: z.infer<typeof MacroSchema>['macro']) => {
         try {
-            // Update macro using the mutations system
             await updateMacro(macroId, { macro: data });
-
-            // Close dialog
             onOpenChange?.(false);
         } catch (error) {
             console.error('Error updating macro:', error);

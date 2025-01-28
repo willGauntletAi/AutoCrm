@@ -17,22 +17,56 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AddTagAction } from './AddTagAction';
+import { Checkbox } from './ui/checkbox';
 
 interface MacroFormProps {
     organizationId: string;
-    initialData?: z.infer<typeof MacroSchema>['macro'];
-    onSubmit: (data: z.infer<typeof MacroSchema>['macro']) => Promise<void>;
+    initialData?: Omit<MacroData, 'aiActions'> & { aiActions?: MacroData['aiActions'] };
+    onSubmit: (data: MacroData) => Promise<void>;
     onCancel: () => void;
 }
 
-type MacroData = z.infer<typeof MacroSchema>['macro'];
+interface MacroData {
+    name: string;
+    description?: string;
+    requirements: {
+        date_tag_requirements: Record<string, { before?: number; after?: number; equals?: string }>;
+        number_tag_requirements: Record<string, { min?: number; max?: number; equals?: number }>;
+        text_tag_requirements: Record<string, { equals?: string; contains?: string; regex?: string }>;
+        enum_tag_requirements: Record<string, string | string[]>;
+        created_at?: { before?: number; after?: number };
+        updated_at?: { before?: number; after?: number };
+        status?: string;
+        priority?: string;
+    };
+    actions: {
+        tag_keys_to_remove: string[];
+        tags_to_modify: {
+            date_tags: Record<string, number>;
+            number_tags: Record<string, number>;
+            text_tags: Record<string, string>;
+            enum_tags: Record<string, string>;
+        };
+        comment?: string;
+        new_status?: string;
+        new_priority?: string;
+    };
+    aiActions: {
+        tagActions: string[];
+        commentAction: {
+            prompt: string;
+        };
+        shouldSuggestStatus: boolean;
+        shouldSuggestPriority: boolean;
+    };
+}
 
 export default function MacroForm({ organizationId, initialData, onSubmit, onCancel }: MacroFormProps) {
     const [activeTab, setActiveTab] = useState('basic');
-    const [formData, setFormData] = useState<MacroData>(initialData || {
-        name: '',
-        description: '',
-        requirements: {
+    const [formData, setFormData] = useState<MacroData>(() => ({
+        name: initialData?.name || '',
+        description: initialData?.description || '',
+        requirements: initialData?.requirements || {
             date_tag_requirements: {},
             number_tag_requirements: {},
             text_tag_requirements: {},
@@ -42,7 +76,7 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
             status: undefined,
             priority: undefined
         },
-        actions: {
+        actions: initialData?.actions || {
             tag_keys_to_remove: [],
             tags_to_modify: {
                 date_tags: {},
@@ -53,8 +87,16 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
             comment: undefined,
             new_status: undefined,
             new_priority: undefined
+        },
+        aiActions: initialData?.aiActions || {
+            tagActions: [],
+            commentAction: {
+                prompt: ''
+            },
+            shouldSuggestStatus: false,
+            shouldSuggestPriority: false
         }
-    });
+    }));
     const [tagRequirements, setTagRequirements] = useState<Array<{ id: string; tagKeyId?: string }>>(() => {
         if (!initialData) return [];
 
@@ -119,7 +161,16 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        await onSubmit(formData);
+        try {
+            await onSubmit(formData);
+        } catch (error) {
+            console.error('Error submitting macro:', error);
+        }
+    };
+
+    const handleCancel = (e: React.MouseEvent) => {
+        e.preventDefault();
+        onCancel();
     };
 
     const handleTagRequirementChange = useCallback((requirement: {
@@ -214,10 +265,11 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
     return (
         <form onSubmit={handleSubmit}>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="basic">Basic Info</TabsTrigger>
                     <TabsTrigger value="requirements">Requirements</TabsTrigger>
                     <TabsTrigger value="actions">Actions</TabsTrigger>
+                    <TabsTrigger value="ai-actions">AI Actions</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="basic" className="space-y-4">
@@ -644,10 +696,148 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
                         </CardContent>
                     </Card>
                 </TabsContent>
+
+                <TabsContent value="ai-actions" className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>AI Tag Actions</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                <div>
+                                    <Label>Tags for AI Processing</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                className="w-full justify-between"
+                                            >
+                                                {formData.aiActions.tagActions.length > 0
+                                                    ? `${formData.aiActions.tagActions.length} tags selected`
+                                                    : "Select tags for AI..."}
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="p-0" align="start">
+                                            <Command className="rounded-lg bg-white">
+                                                <CommandInput placeholder="Search tags..." className="h-9" />
+                                                <CommandList>
+                                                    <CommandEmpty>No tags found.</CommandEmpty>
+                                                    <CommandGroup>
+                                                        {tagKeys.map((key) => (
+                                                            <CommandItem
+                                                                key={key.id}
+                                                                value={key.name}
+                                                                className="hover:bg-gray-100"
+                                                                onSelect={() => {
+                                                                    setFormData(prev => {
+                                                                        const isSelected = prev.aiActions.tagActions.includes(key.id);
+                                                                        return {
+                                                                            ...prev,
+                                                                            aiActions: {
+                                                                                ...prev.aiActions,
+                                                                                tagActions: isSelected
+                                                                                    ? prev.aiActions.tagActions.filter(id => id !== key.id)
+                                                                                    : [...prev.aiActions.tagActions, key.id]
+                                                                            }
+                                                                        };
+                                                                    });
+                                                                }}
+                                                            >
+                                                                {key.name}
+                                                                <Check
+                                                                    className={cn(
+                                                                        "ml-auto h-4 w-4",
+                                                                        formData.aiActions.tagActions.includes(key.id) ? "opacity-100" : "opacity-0"
+                                                                    )}
+                                                                />
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>AI Comment Action</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                <div>
+                                    <Label>Comment Prompt</Label>
+                                    <Textarea
+                                        value={formData.aiActions.commentAction.prompt}
+                                        onChange={e => setFormData(prev => ({
+                                            ...prev,
+                                            aiActions: {
+                                                ...prev.aiActions,
+                                                commentAction: {
+                                                    prompt: e.target.value
+                                                }
+                                            }
+                                        }))}
+                                        placeholder="Enter prompt for AI-generated comment..."
+                                        className="min-h-[100px]"
+                                    />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>AI Suggestions</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="suggest-status"
+                                        checked={formData.aiActions.shouldSuggestStatus}
+                                        onCheckedChange={(checked: boolean) =>
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                aiActions: {
+                                                    ...prev.aiActions,
+                                                    shouldSuggestStatus: checked
+                                                }
+                                            }))
+                                        }
+                                    />
+                                    <Label htmlFor="suggest-status">Suggest Status</Label>
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="suggest-priority"
+                                        checked={formData.aiActions.shouldSuggestPriority}
+                                        onCheckedChange={(checked: boolean) =>
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                aiActions: {
+                                                    ...prev.aiActions,
+                                                    shouldSuggestPriority: checked
+                                                }
+                                            }))
+                                        }
+                                    />
+                                    <Label htmlFor="suggest-priority">Suggest Priority</Label>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
             </Tabs>
 
             <div className="mt-6 flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={onCancel}>
+                <Button type="button" variant="outline" onClick={handleCancel}>
                     Cancel
                 </Button>
                 <Button type="submit">

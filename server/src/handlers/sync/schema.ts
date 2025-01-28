@@ -147,6 +147,15 @@ export const MacroActionSchema = z.object({
     new_priority: z.string().optional()
 });
 
+export const AIActionSchema = z.object({
+    tagActions: z.array(z.string().uuid()),
+    commentAction: z.object({
+        prompt: z.string()
+    }),
+    shouldSuggestStatus: z.boolean(),
+    shouldSuggestPriority: z.boolean()
+});
+
 export const MacroSchema = z.object({
     id: z.string().uuid(),
     organization_id: z.string().uuid(),
@@ -154,7 +163,8 @@ export const MacroSchema = z.object({
         name: z.string(),
         description: z.string().optional(),
         requirements: MacroRequirementsSchema,
-        actions: MacroActionSchema
+        actions: MacroActionSchema,
+        aiActions: AIActionSchema.optional()
     })
 });
 

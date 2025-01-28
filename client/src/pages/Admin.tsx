@@ -27,6 +27,7 @@ export default function AdminPage() {
     const { user } = useAuth();
     const [isCreateMacroOpen, setIsCreateMacroOpen] = useState(false);
     const [isCreateTagOpen, setIsCreateTagOpen] = useState(false);
+    const [macroToEdit, setMacroToEdit] = useState<string | null>(null);
     const [tagToEdit, setTagToEdit] = useState<string | null>(null);
     const [tagToDelete, setTagToDelete] = useState<{ id: string; name: string } | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -238,10 +239,16 @@ export default function AdminPage() {
                                                             organizationId={organization_id}
                                                             macroId={macro.id}
                                                             trigger={
-                                                                <Button variant="outline" size="sm">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => setMacroToEdit(macro.id)}
+                                                                >
                                                                     Edit
                                                                 </Button>
                                                             }
+                                                            open={macroToEdit === macro.id}
+                                                            onOpenChange={(open) => !open && setMacroToEdit(null)}
                                                         />
                                                         <Button
                                                             variant="destructive"
