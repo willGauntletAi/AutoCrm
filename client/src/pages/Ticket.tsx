@@ -38,6 +38,7 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '../lib/auth'
 import type { TicketTagKey, Macro } from '../lib/db'
+import type { MacroRequirements } from '../../../server/src/types/macros'
 import { AddTagValue } from '../components/AddTagValue'
 import { Plus } from 'lucide-react'
 import { formatDateTagValue, formatDateTime, parseYMDDateString } from '@/lib/utils'
@@ -294,6 +295,20 @@ export default function Ticket() {
                     if (requirement.equals !== undefined && tagValue.value !== requirement.equals) return false
                     if (requirement.contains !== undefined && !tagValue.value.includes(requirement.contains)) return false
                     if (requirement.regex !== undefined && !new RegExp(requirement.regex).test(tagValue.value)) return false
+                }
+
+                // Check enum tag requirements
+                for (const [tagKeyId, requirement] of Object.entries(requirements.enum_tag_requirements)) {
+                    const tagValue = tagData.values.enum.get(tagKeyId)
+                    if (!tagValue) return false
+
+                    if (Array.isArray(requirement)) {
+                        // If requirement is array, it's a NOT IN condition
+                        if (requirement.includes(tagValue.enum_option_id)) return false
+                    } else {
+                        // If requirement is string, it's an equals condition
+                        if (tagValue.enum_option_id !== requirement) return false
+                    }
                 }
 
                 return true

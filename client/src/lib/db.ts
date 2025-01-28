@@ -13,9 +13,9 @@ import {
     TicketTagTextValueSchema as ServerTicketTagTextValueSchema,
     TicketTagEnumOptionSchema as ServerTicketTagEnumOptionSchema,
     TicketTagEnumValueSchema as ServerTicketTagEnumValueSchema,
-    MacroSchema as ServerMacroSchema,
     SyncOperationSchema,
 } from '../../../server/src/handlers/sync/schema';
+import { MacroSchema as ServerMacroSchema } from '../../../server/src/types/macros';
 
 // Define timestamp fields that are specific to client-side storage
 const TimestampFieldsSchema = z.object({
