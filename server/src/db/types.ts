@@ -589,6 +589,73 @@ export interface TicketComments {
   user_id: string;
 }
 
+export interface TicketDraftComments {
+  comment: string;
+  created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  ticket_draft_id: string;
+  updated_at: Generated<Timestamp | null>;
+  user_id: string;
+}
+
+export interface TicketDrafts {
+  assigned_to: string | null;
+  created_at: Generated<Timestamp | null>;
+  created_by: string;
+  created_by_macro: string;
+  deleted_at: Timestamp | null;
+  description: string | null;
+  draft_status: Generated<string>;
+  id: Generated<string>;
+  organization_id: string;
+  original_ticket_id: string | null;
+  priority: Generated<string>;
+  status: Generated<string>;
+  title: string;
+  updated_at: Generated<Timestamp | null>;
+}
+
+export interface TicketDraftTagDateValues {
+  created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  tag_key_id: string;
+  ticket_draft_id: string;
+  updated_at: Generated<Timestamp | null>;
+  value: Timestamp;
+}
+
+export interface TicketDraftTagEnumValues {
+  created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
+  enum_option_id: string;
+  id: Generated<string>;
+  tag_key_id: string;
+  ticket_draft_id: string;
+  updated_at: Generated<Timestamp | null>;
+}
+
+export interface TicketDraftTagNumberValues {
+  created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  tag_key_id: string;
+  ticket_draft_id: string;
+  updated_at: Generated<Timestamp | null>;
+  value: Numeric;
+}
+
+export interface TicketDraftTagTextValues {
+  created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  tag_key_id: string;
+  ticket_draft_id: string;
+  updated_at: Generated<Timestamp | null>;
+  value: string;
+}
+
 export interface Tickets {
   assigned_to: string | null;
   created_at: Generated<Timestamp | null>;
@@ -733,6 +800,12 @@ export interface DB {
   "supabase_functions.migrations": SupabaseFunctionsMigrations;
   "supabase_migrations.schema_migrations": SupabaseMigrationsSchemaMigrations;
   ticket_comments: TicketComments;
+  ticket_draft_comments: TicketDraftComments;
+  ticket_draft_tag_date_values: TicketDraftTagDateValues;
+  ticket_draft_tag_enum_values: TicketDraftTagEnumValues;
+  ticket_draft_tag_number_values: TicketDraftTagNumberValues;
+  ticket_draft_tag_text_values: TicketDraftTagTextValues;
+  ticket_drafts: TicketDrafts;
   ticket_tag_date_values: TicketTagDateValues;
   ticket_tag_enum_options: TicketTagEnumOptions;
   ticket_tag_enum_values: TicketTagEnumValues;

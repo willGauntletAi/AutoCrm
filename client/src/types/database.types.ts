@@ -223,6 +223,325 @@ export type Database = {
           },
         ]
       }
+      ticket_draft_comments: {
+        Row: {
+          comment: string
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          ticket_draft_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          comment: string
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          ticket_draft_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          comment?: string
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          ticket_draft_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_draft_comments_ticket_draft_id_fkey"
+            columns: ["ticket_draft_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_draft_comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_draft_tag_date_values: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          tag_key_id: string
+          ticket_draft_id: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          tag_key_id: string
+          ticket_draft_id: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          tag_key_id?: string
+          ticket_draft_id?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_draft_tag_date_values_tag_key_id_fkey"
+            columns: ["tag_key_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_tag_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_draft_tag_date_values_ticket_draft_id_fkey"
+            columns: ["ticket_draft_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_draft_tag_enum_values: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          enum_option_id: string
+          id: string
+          tag_key_id: string
+          ticket_draft_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          enum_option_id: string
+          id?: string
+          tag_key_id: string
+          ticket_draft_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          enum_option_id?: string
+          id?: string
+          tag_key_id?: string
+          ticket_draft_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_draft_tag_enum_values_enum_option_id_fkey"
+            columns: ["enum_option_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_tag_enum_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_draft_tag_enum_values_tag_key_id_fkey"
+            columns: ["tag_key_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_tag_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_draft_tag_enum_values_ticket_draft_id_fkey"
+            columns: ["ticket_draft_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_draft_tag_number_values: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          tag_key_id: string
+          ticket_draft_id: string
+          updated_at: string | null
+          value: number
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          tag_key_id: string
+          ticket_draft_id: string
+          updated_at?: string | null
+          value: number
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          tag_key_id?: string
+          ticket_draft_id?: string
+          updated_at?: string | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_draft_tag_number_values_tag_key_id_fkey"
+            columns: ["tag_key_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_tag_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_draft_tag_number_values_ticket_draft_id_fkey"
+            columns: ["ticket_draft_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_draft_tag_text_values: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          tag_key_id: string
+          ticket_draft_id: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          tag_key_id: string
+          ticket_draft_id: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          tag_key_id?: string
+          ticket_draft_id?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_draft_tag_text_values_tag_key_id_fkey"
+            columns: ["tag_key_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_tag_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_draft_tag_text_values_ticket_draft_id_fkey"
+            columns: ["ticket_draft_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_drafts: {
+        Row: {
+          assigned_to: string | null
+          created_at: string | null
+          created_by: string
+          created_by_macro: string
+          deleted_at: string | null
+          description: string | null
+          draft_status: string
+          id: string
+          organization_id: string
+          original_ticket_id: string | null
+          priority: string
+          status: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string | null
+          created_by: string
+          created_by_macro: string
+          deleted_at?: string | null
+          description?: string | null
+          draft_status?: string
+          id?: string
+          organization_id: string
+          original_ticket_id?: string | null
+          priority?: string
+          status?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string | null
+          created_by?: string
+          created_by_macro?: string
+          deleted_at?: string | null
+          description?: string | null
+          draft_status?: string
+          id?: string
+          organization_id?: string
+          original_ticket_id?: string | null
+          priority?: string
+          status?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_drafts_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_drafts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_drafts_created_by_macro_fkey"
+            columns: ["created_by_macro"]
+            isOneToOne: false
+            referencedRelation: "macros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_drafts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_drafts_original_ticket_id_fkey"
+            columns: ["original_ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_tag_date_values: {
         Row: {
           created_at: string

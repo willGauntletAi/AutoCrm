@@ -6,6 +6,8 @@ const envSchema = z.object({
     // Supabase configuration
     SUPABASE_URL: z.string().url(),
     SUPABASE_JWT_SECRET: z.string(),
+    // OpenAI configuration
+    OPENAI_API_KEY: z.string(),
     // Server configuration
     PORT: z.coerce.number().int().positive().default(3000),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

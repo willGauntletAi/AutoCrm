@@ -12,5 +12,8 @@
     "ci": "npm ci -w server && npm ci -w client",
     "db:migration:up": "cd client && supabase migration up",
     "db:migration:new": "cd client && supabase migration new"
+  },
+  "dependencies": {
+    "openai": "^4.80.1"
   }
 }

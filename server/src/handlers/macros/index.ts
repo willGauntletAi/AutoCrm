@@ -1,6 +1,13 @@
 import { TRPCError } from '@trpc/server';
 import { db } from '../../db';
-import { MacroData, MacroDataSchema } from './types';
+import { MacroDataSchema } from './types';
+import { Insertable, Selectable } from 'kysely';
+import type { DB } from '../../db/types';
+import { generateAIComment, generateAIStatusAndPriority, generateAITagSuggestions } from './ai';
+import { TagValuesByTicket } from './types';
+
+type TableName = keyof DB;
+type InsertObject<T extends TableName> = Insertable<DB[T]>;
 
 interface ApplyMacroParams {
     macroId: string;
@@ -222,181 +229,423 @@ export async function applyMacro({ macroId, ticketIds, organizationId, userId, o
     // Apply actions to valid tickets
     const validTicketIds = validTickets.map(t => t.id);
 
-    // Update ticket status and priority if specified
-    if (actions.new_status || actions.new_priority) {
-        await db
-            .updateTable('tickets')
-            .set({
-                ...(actions.new_status ? { status: actions.new_status } : {}),
-                ...(actions.new_priority ? { priority: actions.new_priority } : {}),
-                updated_at: timestamp
-            })
-            .where('id', 'in', validTicketIds)
-            .execute();
-    }
+    // First apply regular changes if any exist
+    if (actions.new_status || actions.new_priority || actions.tag_keys_to_remove.length > 0 ||
+        Object.keys(actions.tags_to_modify.date_tags).length > 0 ||
+        Object.keys(actions.tags_to_modify.number_tags).length > 0 ||
+        Object.keys(actions.tags_to_modify.text_tags).length > 0 ||
+        Object.keys(actions.tags_to_modify.enum_tags).length > 0 ||
+        actions.comment) {
 
-    // Remove specified tags
-    if (actions.tag_keys_to_remove.length > 0) {
-        await Promise.all([
-            db.updateTable('ticket_tag_date_values')
-                .set({ deleted_at: timestamp, updated_at: timestamp })
-                .where('ticket_id', 'in', validTicketIds)
-                .where('tag_key_id', 'in', actions.tag_keys_to_remove)
-                .execute(),
-            db.updateTable('ticket_tag_number_values')
-                .set({ deleted_at: timestamp, updated_at: timestamp })
-                .where('ticket_id', 'in', validTicketIds)
-                .where('tag_key_id', 'in', actions.tag_keys_to_remove)
-                .execute(),
-            db.updateTable('ticket_tag_text_values')
-                .set({ deleted_at: timestamp, updated_at: timestamp })
-                .where('ticket_id', 'in', validTicketIds)
-                .where('tag_key_id', 'in', actions.tag_keys_to_remove)
-                .execute(),
-            db.updateTable('ticket_tag_enum_values')
-                .set({ deleted_at: timestamp, updated_at: timestamp })
-                .where('ticket_id', 'in', validTicketIds)
-                .where('tag_key_id', 'in', actions.tag_keys_to_remove)
-                .execute()
-        ]);
-    }
-
-    // Add or update tags
-    const { date_tags, number_tags, text_tags, enum_tags } = actions.tags_to_modify;
-
-    // Handle date tags
-    for (const [tagKeyId, value] of Object.entries(date_tags)) {
-        const date = new Date();
-        date.setDate(date.getDate() + Number(value));
-
-        for (const ticketId of validTicketIds) {
-            const existingValue = tagValuesByTicket[ticketId].date.get(tagKeyId);
-            if (existingValue) {
-                await db
-                    .updateTable('ticket_tag_date_values')
-                    .set({
-                        value: date,
-                        updated_at: timestamp
-                    })
-                    .where('id', '=', existingValue.id)
-                    .execute();
-            } else {
-                await db
-                    .insertInto('ticket_tag_date_values')
-                    .values({
-                        id: crypto.randomUUID(),
-                        ticket_id: ticketId,
-                        tag_key_id: tagKeyId,
-                        value: date,
-                        created_at: timestamp,
-                        updated_at: timestamp
-                    })
-                    .execute();
-            }
-        }
-    }
-
-    // Handle number tags
-    for (const [tagKeyId, value] of Object.entries(number_tags)) {
-        for (const ticketId of validTicketIds) {
-            const existingValue = tagValuesByTicket[ticketId].number.get(tagKeyId);
-            if (existingValue) {
-                await db
-                    .updateTable('ticket_tag_number_values')
-                    .set({
-                        value: value.toString(),
-                        updated_at: timestamp
-                    })
-                    .where('id', '=', existingValue.id)
-                    .execute();
-            } else {
-                await db
-                    .insertInto('ticket_tag_number_values')
-                    .values({
-                        id: crypto.randomUUID(),
-                        ticket_id: ticketId,
-                        tag_key_id: tagKeyId,
-                        value: value.toString(),
-                        created_at: timestamp,
-                        updated_at: timestamp
-                    })
-                    .execute();
-            }
-        }
-    }
-
-    // Handle text tags
-    for (const [tagKeyId, value] of Object.entries(text_tags)) {
-        for (const ticketId of validTicketIds) {
-            const existingValue = tagValuesByTicket[ticketId].text.get(tagKeyId);
-            if (existingValue) {
-                await db
-                    .updateTable('ticket_tag_text_values')
-                    .set({
-                        value,
-                        updated_at: timestamp
-                    })
-                    .where('id', '=', existingValue.id)
-                    .execute();
-            } else {
-                await db
-                    .insertInto('ticket_tag_text_values')
-                    .values({
-                        id: crypto.randomUUID(),
-                        ticket_id: ticketId,
-                        tag_key_id: tagKeyId,
-                        value,
-                        created_at: timestamp,
-                        updated_at: timestamp
-                    })
-                    .execute();
-            }
-        }
-    }
-
-    // Handle enum tags
-    for (const [tagKeyId, enumOptionId] of Object.entries(enum_tags)) {
-        for (const ticketId of validTicketIds) {
-            const existingValue = tagValuesByTicket[ticketId].enum.get(tagKeyId);
-            if (existingValue) {
-                await db
-                    .updateTable('ticket_tag_enum_values')
-                    .set({
-                        enum_option_id: enumOptionId,
-                        updated_at: timestamp
-                    })
-                    .where('id', '=', existingValue.id)
-                    .execute();
-            } else {
-                await db
-                    .insertInto('ticket_tag_enum_values')
-                    .values({
-                        id: crypto.randomUUID(),
-                        ticket_id: ticketId,
-                        tag_key_id: tagKeyId,
-                        enum_option_id: enumOptionId,
-                        created_at: timestamp,
-                        updated_at: timestamp
-                    })
-                    .execute();
-            }
-        }
-    }
-
-    // Add comment if specified
-    if (actions.comment) {
-        await Promise.all(validTicketIds.map(ticketId =>
-            db.insertInto('ticket_comments')
-                .values({
-                    id: crypto.randomUUID(),
-                    ticket_id: ticketId,
-                    comment: actions.comment!,
-                    user_id: userId,
-                    created_at: timestamp,
+        // Update ticket status and priority if specified
+        if (actions.new_status || actions.new_priority) {
+            await db
+                .updateTable('tickets')
+                .set({
+                    ...(actions.new_status ? { status: actions.new_status } : {}),
+                    ...(actions.new_priority ? { priority: actions.new_priority } : {}),
                     updated_at: timestamp
                 })
+                .where('id', 'in', validTicketIds)
+                .execute();
+        }
+
+        // Remove specified tags
+        if (actions.tag_keys_to_remove.length > 0) {
+            await Promise.all([
+                db.updateTable('ticket_tag_date_values')
+                    .set({ deleted_at: timestamp, updated_at: timestamp })
+                    .where('ticket_id', 'in', validTicketIds)
+                    .where('tag_key_id', 'in', actions.tag_keys_to_remove)
+                    .execute(),
+                db.updateTable('ticket_tag_number_values')
+                    .set({ deleted_at: timestamp, updated_at: timestamp })
+                    .where('ticket_id', 'in', validTicketIds)
+                    .where('tag_key_id', 'in', actions.tag_keys_to_remove)
+                    .execute(),
+                db.updateTable('ticket_tag_text_values')
+                    .set({ deleted_at: timestamp, updated_at: timestamp })
+                    .where('ticket_id', 'in', validTicketIds)
+                    .where('tag_key_id', 'in', actions.tag_keys_to_remove)
+                    .execute(),
+                db.updateTable('ticket_tag_enum_values')
+                    .set({ deleted_at: timestamp, updated_at: timestamp })
+                    .where('ticket_id', 'in', validTicketIds)
+                    .where('tag_key_id', 'in', actions.tag_keys_to_remove)
+                    .execute()
+            ]);
+        }
+
+        // Add or update tags
+        const { date_tags, number_tags, text_tags, enum_tags } = actions.tags_to_modify;
+
+        // Handle date tags
+        for (const [tagKeyId, value] of Object.entries(date_tags)) {
+            const date = new Date();
+            date.setDate(date.getDate() + Number(value));
+
+            for (const ticketId of validTicketIds) {
+                const existingValue = tagValuesByTicket[ticketId].date.get(tagKeyId);
+                if (existingValue) {
+                    await db
+                        .updateTable('ticket_tag_date_values')
+                        .set({
+                            value: date,
+                            updated_at: timestamp
+                        })
+                        .where('id', '=', existingValue.id)
+                        .execute();
+                } else {
+                    await db
+                        .insertInto('ticket_tag_date_values')
+                        .values({
+                            id: crypto.randomUUID(),
+                            ticket_id: ticketId,
+                            tag_key_id: tagKeyId,
+                            value: date,
+                            created_at: timestamp,
+                            updated_at: timestamp
+                        })
+                        .execute();
+                }
+            }
+        }
+
+        // Handle number tags
+        for (const [tagKeyId, value] of Object.entries(number_tags)) {
+            for (const ticketId of validTicketIds) {
+                const existingValue = tagValuesByTicket[ticketId].number.get(tagKeyId);
+                if (existingValue) {
+                    await db
+                        .updateTable('ticket_tag_number_values')
+                        .set({
+                            value: value.toString(),
+                            updated_at: timestamp
+                        })
+                        .where('id', '=', existingValue.id)
+                        .execute();
+                } else {
+                    await db
+                        .insertInto('ticket_tag_number_values')
+                        .values({
+                            id: crypto.randomUUID(),
+                            ticket_id: ticketId,
+                            tag_key_id: tagKeyId,
+                            value: value.toString(),
+                            created_at: timestamp,
+                            updated_at: timestamp
+                        })
+                        .execute();
+                }
+            }
+        }
+
+        // Handle text tags
+        for (const [tagKeyId, value] of Object.entries(text_tags)) {
+            for (const ticketId of validTicketIds) {
+                const existingValue = tagValuesByTicket[ticketId].text.get(tagKeyId);
+                if (existingValue) {
+                    await db
+                        .updateTable('ticket_tag_text_values')
+                        .set({
+                            value,
+                            updated_at: timestamp
+                        })
+                        .where('id', '=', existingValue.id)
+                        .execute();
+                } else {
+                    await db
+                        .insertInto('ticket_tag_text_values')
+                        .values({
+                            id: crypto.randomUUID(),
+                            ticket_id: ticketId,
+                            tag_key_id: tagKeyId,
+                            value,
+                            created_at: timestamp,
+                            updated_at: timestamp
+                        })
+                        .execute();
+                }
+            }
+        }
+
+        // Handle enum tags
+        for (const [tagKeyId, enumOptionId] of Object.entries(enum_tags)) {
+            for (const ticketId of validTicketIds) {
+                const existingValue = tagValuesByTicket[ticketId].enum.get(tagKeyId);
+                if (existingValue) {
+                    await db
+                        .updateTable('ticket_tag_enum_values')
+                        .set({
+                            enum_option_id: enumOptionId,
+                            updated_at: timestamp
+                        })
+                        .where('id', '=', existingValue.id)
+                        .execute();
+                } else {
+                    await db
+                        .insertInto('ticket_tag_enum_values')
+                        .values({
+                            id: crypto.randomUUID(),
+                            ticket_id: ticketId,
+                            tag_key_id: tagKeyId,
+                            enum_option_id: enumOptionId,
+                            created_at: timestamp,
+                            updated_at: timestamp
+                        })
+                        .execute();
+                }
+            }
+        }
+
+        // Add comment if specified
+        if (actions.comment) {
+            await Promise.all(validTicketIds.map(ticketId =>
+                db.insertInto('ticket_comments')
+                    .values({
+                        id: crypto.randomUUID(),
+                        ticket_id: ticketId,
+                        comment: actions.comment!,
+                        user_id: userId,
+                        created_at: timestamp,
+                        updated_at: timestamp
+                    })
+                    .execute()
+            ));
+        }
+
+        // Refresh tickets and tag values after applying changes
+        const updatedTickets = await db
+            .selectFrom('tickets')
+            .selectAll()
+            .where('id', 'in', validTicketIds)
+            .where('deleted_at', 'is', null)
+            .execute();
+
+        const [updatedDateValues, updatedNumberValues, updatedTextValues, updatedEnumValues] = await Promise.all([
+            db.selectFrom('ticket_tag_date_values')
+                .selectAll()
+                .where('ticket_id', 'in', validTicketIds)
+                .where('deleted_at', 'is', null)
+                .execute(),
+            db.selectFrom('ticket_tag_number_values')
+                .selectAll()
+                .where('ticket_id', 'in', validTicketIds)
+                .where('deleted_at', 'is', null)
+                .execute(),
+            db.selectFrom('ticket_tag_text_values')
+                .selectAll()
+                .where('ticket_id', 'in', validTicketIds)
+                .where('deleted_at', 'is', null)
+                .execute(),
+            db.selectFrom('ticket_tag_enum_values')
+                .selectAll()
+                .where('ticket_id', 'in', validTicketIds)
+                .where('deleted_at', 'is', null)
                 .execute()
-        ));
+        ]);
+
+        // Update the tag values map with the new values
+        const updatedTagValuesByTicket = updatedTickets.reduce((acc, ticket) => {
+            acc[ticket.id] = {
+                date: new Map(updatedDateValues.filter(v => v.ticket_id === ticket.id).map(v => [v.tag_key_id, v])),
+                number: new Map(updatedNumberValues.filter(v => v.ticket_id === ticket.id).map(v => [v.tag_key_id, v])),
+                text: new Map(updatedTextValues.filter(v => v.ticket_id === ticket.id).map(v => [v.tag_key_id, v])),
+                enum: new Map(updatedEnumValues.filter(v => v.ticket_id === ticket.id).map(v => [v.tag_key_id, v]))
+            };
+            return acc;
+        }, {} as Record<string, TagValuesByTicket>);
+
+        // Now handle AI actions if present, using the updated ticket data
+        if (macroData.aiActions) {
+            const { aiActions } = macroData;
+            const drafts = await Promise.all(updatedTickets.map(async ticket => {
+                // Create the draft with updated ticket data
+                const draftInsert: InsertObject<'ticket_drafts'> = {
+                    title: ticket.title,
+                    description: ticket.description,
+                    status: ticket.status,
+                    priority: ticket.priority,
+                    draft_status: 'unreviewed',
+                    created_by: userId,
+                    created_by_macro: macroId,
+                    assigned_to: ticket.assigned_to,
+                    organization_id: organizationId,
+                    original_ticket_id: ticket.id
+                };
+
+                const draft = await db
+                    .insertInto('ticket_drafts')
+                    .values(draftInsert)
+                    .returning(['id'])
+                    .executeTakeFirstOrThrow();
+
+                // Copy over the updated tag values to the draft
+                const ticketTags = updatedTagValuesByTicket[ticket.id];
+
+                // Copy date tags
+                await Promise.all(Array.from(ticketTags.date.values()).map((tag: Selectable<DB['ticket_tag_date_values']>) => {
+                    const dateInsert: InsertObject<'ticket_draft_tag_date_values'> = {
+                        ticket_draft_id: draft.id,
+                        tag_key_id: tag.tag_key_id,
+                        value: tag.value
+                    };
+                    return db.insertInto('ticket_draft_tag_date_values')
+                        .values(dateInsert)
+                        .execute();
+                }));
+
+                // Copy number tags
+                await Promise.all(Array.from(ticketTags.number.values()).map((tag: Selectable<DB['ticket_tag_number_values']>) => {
+                    const numberInsert: InsertObject<'ticket_draft_tag_number_values'> = {
+                        ticket_draft_id: draft.id,
+                        tag_key_id: tag.tag_key_id,
+                        value: tag.value
+                    };
+                    return db.insertInto('ticket_draft_tag_number_values')
+                        .values(numberInsert)
+                        .execute();
+                }));
+
+                // Copy text tags
+                await Promise.all(Array.from(ticketTags.text.values()).map((tag: Selectable<DB['ticket_tag_text_values']>) => {
+                    const textInsert: InsertObject<'ticket_draft_tag_text_values'> = {
+                        ticket_draft_id: draft.id,
+                        tag_key_id: tag.tag_key_id,
+                        value: tag.value
+                    };
+                    return db.insertInto('ticket_draft_tag_text_values')
+                        .values(textInsert)
+                        .execute();
+                }));
+
+                // Copy enum tags
+                await Promise.all(Array.from(ticketTags.enum.values()).map((tag: Selectable<DB['ticket_tag_enum_values']>) => {
+                    const enumInsert: InsertObject<'ticket_draft_tag_enum_values'> = {
+                        ticket_draft_id: draft.id,
+                        tag_key_id: tag.tag_key_id,
+                        enum_option_id: tag.enum_option_id
+                    };
+                    return db.insertInto('ticket_draft_tag_enum_values')
+                        .values(enumInsert)
+                        .execute();
+                }));
+
+                // Generate AI suggestions in parallel
+                const [tagSuggestions, commentSuggestion, statusAndPrioritySuggestion] = await Promise.all([
+                    // Generate tag suggestions if requested
+                    aiActions.tagActions.length > 0
+                        ? generateAITagSuggestions({
+                            ticket,
+                            tagKeyIds: aiActions.tagActions,
+                            existingTags: ticketTags
+                        })
+                        : Promise.resolve(null),
+
+                    // Generate comment if requested
+                    aiActions.commentAction
+                        ? generateAIComment({
+                            ticket,
+                            prompt: aiActions.commentAction.prompt,
+                            existingTags: ticketTags
+                        })
+                        : Promise.resolve(null),
+
+                    // Generate status and priority if requested
+                    (aiActions.shouldSuggestStatus || aiActions.shouldSuggestPriority)
+                        ? generateAIStatusAndPriority({
+                            ticket,
+                            suggestStatus: aiActions.shouldSuggestStatus,
+                            suggestPriority: aiActions.shouldSuggestPriority,
+                            existingTags: ticketTags
+                        })
+                        : Promise.resolve(null)
+                ]);
+
+                // Apply tag suggestions
+                if (tagSuggestions) {
+                    for (const suggestion of tagSuggestions) {
+                        switch (suggestion.type) {
+                            case 'date': {
+                                const dateInsert: InsertObject<'ticket_draft_tag_date_values'> = {
+                                    ticket_draft_id: draft.id,
+                                    tag_key_id: suggestion.tagKeyId,
+                                    value: suggestion.value as Date
+                                };
+                                await db.insertInto('ticket_draft_tag_date_values')
+                                    .values(dateInsert)
+                                    .execute();
+                                break;
+                            }
+                            case 'number': {
+                                const numberInsert: InsertObject<'ticket_draft_tag_number_values'> = {
+                                    ticket_draft_id: draft.id,
+                                    tag_key_id: suggestion.tagKeyId,
+                                    value: suggestion.value.toString()
+                                };
+                                await db.insertInto('ticket_draft_tag_number_values')
+                                    .values(numberInsert)
+                                    .execute();
+                                break;
+                            }
+                            case 'text': {
+                                const textInsert: InsertObject<'ticket_draft_tag_text_values'> = {
+                                    ticket_draft_id: draft.id,
+                                    tag_key_id: suggestion.tagKeyId,
+                                    value: suggestion.value as string
+                                };
+                                await db.insertInto('ticket_draft_tag_text_values')
+                                    .values(textInsert)
+                                    .execute();
+                                break;
+                            }
+                            case 'enum': {
+                                const enumInsert: InsertObject<'ticket_draft_tag_enum_values'> = {
+                                    ticket_draft_id: draft.id,
+                                    tag_key_id: suggestion.tagKeyId,
+                                    enum_option_id: suggestion.value as string
+                                };
+                                await db.insertInto('ticket_draft_tag_enum_values')
+                                    .values(enumInsert)
+                                    .execute();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Apply comment suggestion
+                if (commentSuggestion) {
+                    const commentInsert: InsertObject<'ticket_draft_comments'> = {
+                        ticket_draft_id: draft.id,
+                        user_id: userId,
+                        comment: commentSuggestion
+                    };
+                    await db.insertInto('ticket_draft_comments')
+                        .values(commentInsert)
+                        .execute();
+                }
+
+                // Apply status and priority suggestions
+                if (statusAndPrioritySuggestion) {
+                    const updateValues: Partial<InsertObject<'ticket_drafts'>> = {
+                        ...(statusAndPrioritySuggestion.status ? { status: statusAndPrioritySuggestion.status } : {}),
+                        ...(statusAndPrioritySuggestion.priority ? { priority: statusAndPrioritySuggestion.priority } : {})
+                    };
+                    await db.updateTable('ticket_drafts')
+                        .set(updateValues)
+                        .where('id', '=', draft.id)
+                        .execute();
+                }
+
+                return draft.id;
+            }));
+
+            return {
+                createdDrafts: drafts,
+                appliedToTickets: [] // No direct changes were made to tickets
+            };
+        }
     }
 
     return {
