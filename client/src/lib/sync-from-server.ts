@@ -1,7 +1,16 @@
 import Dexie from 'dexie';
 import { db } from './db';
 import { supabase } from './supabase';
-import type { Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation, TicketTagKey, TicketTagNumberValueWithNumber, TicketTagTextValue, TicketTagDateValueWithDate, TicketTagDateValue, Macro } from './db';
+import type {
+    Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation, TicketTagKey, TicketTagNumberValueWithNumber, TicketTagTextValue, TicketTagDateValueWithDate, TicketTagDateValue, Macro,
+    // Add draft types
+    TicketDraft,
+    TicketDraftComment,
+    TicketDraftTagDateValue,
+    TicketDraftTagNumberValue,
+    TicketDraftTagTextValue,
+    TicketDraftTagEnumValue
+} from './db';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { parseYMDDateString } from './utils';
 
@@ -51,7 +60,14 @@ async function clearDatabase() {
         db.ticketTagDateValues,
         db.ticketTagNumberValues,
         db.ticketTagTextValues,
-        db.macros
+        db.macros,
+        // Add draft tables
+        db.ticketDrafts,
+        db.ticketDraftComments,
+        db.ticketDraftTagDateValues,
+        db.ticketDraftTagNumberValues,
+        db.ticketDraftTagTextValues,
+        db.ticketDraftTagEnumValues
     ], async () => {
         await Promise.all([
             db.profiles.clear(),
@@ -64,7 +80,14 @@ async function clearDatabase() {
             db.ticketTagDateValues.clear(),
             db.ticketTagNumberValues.clear(),
             db.ticketTagTextValues.clear(),
-            db.macros.clear()
+            db.macros.clear(),
+            // Add draft tables
+            db.ticketDrafts.clear(),
+            db.ticketDraftComments.clear(),
+            db.ticketDraftTagDateValues.clear(),
+            db.ticketDraftTagNumberValues.clear(),
+            db.ticketDraftTagTextValues.clear(),
+            db.ticketDraftTagEnumValues.clear()
         ]);
     });
 }
@@ -84,7 +107,14 @@ export async function syncFromServer() {
             tagDateValuesTimestamp,
             tagNumberValuesTimestamp,
             tagTextValuesTimestamp,
-            macrosTimestamp
+            macrosTimestamp,
+            // Add draft timestamps
+            draftsTimestamp,
+            draftCommentsTimestamp,
+            draftTagDateValuesTimestamp,
+            draftTagNumberValuesTimestamp,
+            draftTagTextValuesTimestamp,
+            draftTagEnumValuesTimestamp
         ] = await Promise.all([
             getLatestTimestamp(db.profiles),
             getLatestTimestamp(db.organizations),
@@ -96,7 +126,14 @@ export async function syncFromServer() {
             getLatestTimestamp(db.ticketTagDateValues),
             getLatestTimestamp(db.ticketTagNumberValues),
             getLatestTimestamp(db.ticketTagTextValues),
-            getLatestTimestamp(db.macros)
+            getLatestTimestamp(db.macros),
+            // Add draft timestamps
+            getLatestTimestamp(db.ticketDrafts),
+            getLatestTimestamp(db.ticketDraftComments),
+            getLatestTimestamp(db.ticketDraftTagDateValues),
+            getLatestTimestamp(db.ticketDraftTagNumberValues),
+            getLatestTimestamp(db.ticketDraftTagTextValues),
+            getLatestTimestamp(db.ticketDraftTagEnumValues)
         ]);
 
         // Fetch updated data from Supabase
@@ -111,7 +148,14 @@ export async function syncFromServer() {
             { data: tagDateValues, error: tagDateValuesError },
             { data: tagNumberValues, error: tagNumberValuesError },
             { data: tagTextValues, error: tagTextValuesError },
-            { data: macros, error: macrosError }
+            { data: macros, error: macrosError },
+            // Add draft queries
+            { data: drafts, error: draftsError },
+            { data: draftComments, error: draftCommentsError },
+            { data: draftTagDateValues, error: draftTagDateValuesError },
+            { data: draftTagNumberValues, error: draftTagNumberValuesError },
+            { data: draftTagTextValues, error: draftTagTextValuesError },
+            { data: draftTagEnumValues, error: draftTagEnumValuesError }
         ] = await Promise.all([
             supabase
                 .from('profiles')
@@ -167,6 +211,37 @@ export async function syncFromServer() {
                 .from('macros')
                 .select('*')
                 .gte('updated_at', macrosTimestamp)
+                .is('deleted_at', null),
+            // Add draft queries
+            supabase
+                .from('ticket_drafts')
+                .select('*')
+                .gte('updated_at', draftsTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_draft_comments')
+                .select('*')
+                .gte('updated_at', draftCommentsTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_draft_tag_date_values')
+                .select('*')
+                .gte('updated_at', draftTagDateValuesTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_draft_tag_number_values')
+                .select('*')
+                .gte('updated_at', draftTagNumberValuesTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_draft_tag_text_values')
+                .select('*')
+                .gte('updated_at', draftTagTextValuesTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_draft_tag_enum_values')
+                .select('*')
+                .gte('updated_at', draftTagEnumValuesTimestamp)
                 .is('deleted_at', null)
         ]);
 
@@ -182,6 +257,13 @@ export async function syncFromServer() {
         if (tagNumberValuesError) throw tagNumberValuesError;
         if (tagTextValuesError) throw tagTextValuesError;
         if (macrosError) throw macrosError;
+        // Add draft error checks
+        if (draftsError) throw draftsError;
+        if (draftCommentsError) throw draftCommentsError;
+        if (draftTagDateValuesError) throw draftTagDateValuesError;
+        if (draftTagNumberValuesError) throw draftTagNumberValuesError;
+        if (draftTagTextValuesError) throw draftTagTextValuesError;
+        if (draftTagEnumValuesError) throw draftTagEnumValuesError;
 
         // Update local DB
         await db.transaction('rw', [
@@ -195,7 +277,14 @@ export async function syncFromServer() {
             db.ticketTagDateValues,
             db.ticketTagNumberValues,
             db.ticketTagTextValues,
-            db.macros
+            db.macros,
+            // Add draft tables
+            db.ticketDrafts,
+            db.ticketDraftComments,
+            db.ticketDraftTagDateValues,
+            db.ticketDraftTagNumberValues,
+            db.ticketDraftTagTextValues,
+            db.ticketDraftTagEnumValues
         ], async () => {
             // Use bulkPut to upsert records
             if (profiles?.length) {
@@ -231,6 +320,29 @@ export async function syncFromServer() {
             if (macros?.length) {
                 await db.macros.bulkPut(macros as Macro[]);
             }
+            // Add draft updates
+            if (drafts?.length) {
+                await db.ticketDrafts.bulkPut(drafts.map(draft => ({
+                    ...draft,
+                    parent_draft_id: draft.parent_draft_id ?? null,
+                    latency: draft.latency ?? 0
+                })) as TicketDraft[]);
+            }
+            if (draftComments?.length) {
+                await db.ticketDraftComments.bulkPut(draftComments as TicketDraftComment[]);
+            }
+            if (draftTagDateValues?.length) {
+                await db.ticketDraftTagDateValues.bulkPut(draftTagDateValues.map(t => ({ ...t, value: new Date(t.value) })) as TicketDraftTagDateValue[]);
+            }
+            if (draftTagNumberValues?.length) {
+                await db.ticketDraftTagNumberValues.bulkPut(draftTagNumberValues as TicketDraftTagNumberValue[]);
+            }
+            if (draftTagTextValues?.length) {
+                await db.ticketDraftTagTextValues.bulkPut(draftTagTextValues as TicketDraftTagTextValue[]);
+            }
+            if (draftTagEnumValues?.length) {
+                await db.ticketDraftTagEnumValues.bulkPut(draftTagEnumValues as TicketDraftTagEnumValue[]);
+            }
         });
 
         await setInitialized(true);
@@ -247,12 +359,26 @@ export async function syncOrganizationData(organizationId: string) {
             membersTimestamp,
             ticketsTimestamp,
             commentsTimestamp,
-            invitationsTimestamp
+            invitationsTimestamp,
+            // Add draft timestamps
+            draftsTimestamp,
+            draftCommentsTimestamp,
+            draftTagDateValuesTimestamp,
+            draftTagNumberValuesTimestamp,
+            draftTagTextValuesTimestamp,
+            draftTagEnumValuesTimestamp
         ] = await Promise.all([
             getLatestTimestamp(db.profileOrganizationMembers),
             getLatestTimestamp(db.tickets),
             getLatestTimestamp(db.ticketComments),
-            getLatestTimestamp(db.organizationInvitations)
+            getLatestTimestamp(db.organizationInvitations),
+            // Add draft timestamps
+            getLatestTimestamp(db.ticketDrafts),
+            getLatestTimestamp(db.ticketDraftComments),
+            getLatestTimestamp(db.ticketDraftTagDateValues),
+            getLatestTimestamp(db.ticketDraftTagNumberValues),
+            getLatestTimestamp(db.ticketDraftTagTextValues),
+            getLatestTimestamp(db.ticketDraftTagEnumValues)
         ]);
 
         // Fetch updated data from Supabase for this organization
@@ -260,7 +386,14 @@ export async function syncOrganizationData(organizationId: string) {
             { data: members, error: membersError },
             { data: tickets, error: ticketsError },
             { data: comments, error: commentsError },
-            { data: invitations, error: invitationsError }
+            { data: invitations, error: invitationsError },
+            // Add draft queries
+            { data: drafts, error: draftsError },
+            { data: draftComments, error: draftCommentsError },
+            { data: draftTagDateValues, error: draftTagDateValuesError },
+            { data: draftTagNumberValues, error: draftTagNumberValuesError },
+            { data: draftTagTextValues, error: draftTagTextValuesError },
+            { data: draftTagEnumValues, error: draftTagEnumValuesError }
         ] = await Promise.all([
             supabase
                 .from('profile_organization_members')
@@ -294,6 +427,88 @@ export async function syncOrganizationData(organizationId: string) {
                 .select('*')
                 .eq('organization_id', organizationId)
                 .gte('updated_at', invitationsTimestamp)
+                .is('deleted_at', null),
+            // Add draft queries
+            supabase
+                .from('ticket_drafts')
+                .select('*')
+                .eq('organization_id', organizationId)
+                .gte('updated_at', draftsTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_draft_comments')
+                .select(`
+                    id,
+                    ticket_draft_id,
+                    user_id,
+                    comment,
+                    created_at,
+                    updated_at,
+                    deleted_at,
+                    ticket_drafts!inner(organization_id)
+                `)
+                .eq('ticket_drafts.organization_id', organizationId)
+                .gte('updated_at', draftCommentsTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_draft_tag_date_values')
+                .select(`
+                    id,
+                    ticket_draft_id,
+                    tag_key_id,
+                    value,
+                    created_at,
+                    updated_at,
+                    deleted_at,
+                    ticket_drafts!inner(organization_id)
+                `)
+                .eq('ticket_drafts.organization_id', organizationId)
+                .gte('updated_at', draftTagDateValuesTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_draft_tag_number_values')
+                .select(`
+                    id,
+                    ticket_draft_id,
+                    tag_key_id,
+                    value,
+                    created_at,
+                    updated_at,
+                    deleted_at,
+                    ticket_drafts!inner(organization_id)
+                `)
+                .eq('ticket_drafts.organization_id', organizationId)
+                .gte('updated_at', draftTagNumberValuesTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_draft_tag_text_values')
+                .select(`
+                    id,
+                    ticket_draft_id,
+                    tag_key_id,
+                    value,
+                    created_at,
+                    updated_at,
+                    deleted_at,
+                    ticket_drafts!inner(organization_id)
+                `)
+                .eq('ticket_drafts.organization_id', organizationId)
+                .gte('updated_at', draftTagTextValuesTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_draft_tag_enum_values')
+                .select(`
+                    id,
+                    ticket_draft_id,
+                    tag_key_id,
+                    enum_option_id,
+                    created_at,
+                    updated_at,
+                    deleted_at,
+                    ticket_drafts!inner(organization_id)
+                `)
+                .eq('ticket_drafts.organization_id', organizationId)
+                .gte('updated_at', draftTagEnumValuesTimestamp)
                 .is('deleted_at', null)
         ]);
 
@@ -302,13 +517,27 @@ export async function syncOrganizationData(organizationId: string) {
         if (ticketsError) throw ticketsError;
         if (commentsError) throw commentsError;
         if (invitationsError) throw invitationsError;
+        // Add draft error checks
+        if (draftsError) throw draftsError;
+        if (draftCommentsError) throw draftCommentsError;
+        if (draftTagDateValuesError) throw draftTagDateValuesError;
+        if (draftTagNumberValuesError) throw draftTagNumberValuesError;
+        if (draftTagTextValuesError) throw draftTagTextValuesError;
+        if (draftTagEnumValuesError) throw draftTagEnumValuesError;
 
         // Update local DB
         await db.transaction('rw', [
             db.profileOrganizationMembers,
             db.tickets,
             db.ticketComments,
-            db.organizationInvitations
+            db.organizationInvitations,
+            // Add draft tables
+            db.ticketDrafts,
+            db.ticketDraftComments,
+            db.ticketDraftTagDateValues,
+            db.ticketDraftTagNumberValues,
+            db.ticketDraftTagTextValues,
+            db.ticketDraftTagEnumValues
         ], async () => {
             if (members?.length) {
                 await db.profileOrganizationMembers.bulkPut(members as ProfileOrganizationMember[]);
@@ -321,6 +550,29 @@ export async function syncOrganizationData(organizationId: string) {
             }
             if (invitations?.length) {
                 await db.organizationInvitations.bulkPut(invitations as OrganizationInvitation[]);
+            }
+            // Add draft updates
+            if (drafts?.length) {
+                await db.ticketDrafts.bulkPut(drafts.map(draft => ({
+                    ...draft,
+                    parent_draft_id: draft.parent_draft_id ?? null,
+                    latency: draft.latency ?? 0
+                })) as TicketDraft[]);
+            }
+            if (draftComments?.length) {
+                await db.ticketDraftComments.bulkPut(draftComments as TicketDraftComment[]);
+            }
+            if (draftTagDateValues?.length) {
+                await db.ticketDraftTagDateValues.bulkPut(draftTagDateValues.map(t => ({ ...t, value: new Date(t.value) })) as TicketDraftTagDateValue[]);
+            }
+            if (draftTagNumberValues?.length) {
+                await db.ticketDraftTagNumberValues.bulkPut(draftTagNumberValues as TicketDraftTagNumberValue[]);
+            }
+            if (draftTagTextValues?.length) {
+                await db.ticketDraftTagTextValues.bulkPut(draftTagTextValues as TicketDraftTagTextValue[]);
+            }
+            if (draftTagEnumValues?.length) {
+                await db.ticketDraftTagEnumValues.bulkPut(draftTagEnumValues as TicketDraftTagEnumValue[]);
             }
         });
 
@@ -465,6 +717,74 @@ function setupRealtimeSync() {
                 await db.macros.delete(payload.old.id);
             } else {
                 await db.macros.put(payload.new);
+            }
+        })
+        // Add draft subscriptions
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_drafts'
+        }, async (payload: RealtimePostgresChangesPayload<TicketDraft>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketDrafts.delete(payload.old.id);
+            } else {
+                await db.ticketDrafts.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_draft_comments'
+        }, async (payload: RealtimePostgresChangesPayload<TicketDraftComment>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketDraftComments.delete(payload.old.id);
+            } else {
+                await db.ticketDraftComments.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_draft_tag_date_values'
+        }, async (payload: RealtimePostgresChangesPayload<TicketDraftTagDateValue>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketDraftTagDateValues.delete(payload.old.id);
+            } else {
+                const newDateValue = { ...payload.new, value: new Date(payload.new.value) };
+                await db.ticketDraftTagDateValues.put(newDateValue);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_draft_tag_number_values'
+        }, async (payload: RealtimePostgresChangesPayload<TicketDraftTagNumberValue>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketDraftTagNumberValues.delete(payload.old.id);
+            } else {
+                await db.ticketDraftTagNumberValues.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_draft_tag_text_values'
+        }, async (payload: RealtimePostgresChangesPayload<TicketDraftTagTextValue>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketDraftTagTextValues.delete(payload.old.id);
+            } else {
+                await db.ticketDraftTagTextValues.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_draft_tag_enum_values'
+        }, async (payload: RealtimePostgresChangesPayload<TicketDraftTagEnumValue>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketDraftTagEnumValues.delete(payload.old.id);
+            } else {
+                await db.ticketDraftTagEnumValues.put(payload.new);
             }
         })
         .subscribe();

@@ -13,7 +13,7 @@ export const TicketDraftSchema = z.object({
     organization_id: z.string().uuid(),
     original_ticket_id: z.string().uuid().nullable(),
     parent_draft_id: z.string().uuid().nullable(),
-    latency: z.number().nullable(),
+    latency: z.number(),
     created_at: z.string().nullable(),
     updated_at: z.string().nullable(),
     deleted_at: z.string().nullable(),

@@ -4,7 +4,7 @@ ADD COLUMN parent_draft_id UUID REFERENCES public.ticket_drafts (id) ON DELETE S
 
 -- Add latency column to ticket_drafts table
 ALTER TABLE public.ticket_drafts
-ADD COLUMN latency NUMERIC;
+ADD COLUMN latency NUMERIC NOT NULL DEFAULT 0;
 
 -- Create an index for parent_draft_id to improve query performance
 CREATE INDEX ticket_drafts_parent_draft_id_idx ON public.ticket_drafts (parent_draft_id);

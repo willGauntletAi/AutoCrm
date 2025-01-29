@@ -7,7 +7,7 @@ import { db } from '../lib/db'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '@/lib/auth'
 import type { TicketTagKey } from '../lib/db'
-import { TagFilter } from '../components/TagFilter'
+import { TicketFilters, type TagFilter } from '../components/TicketFilters'
 import { formatDateTagValue, formatDateTime } from '@/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
@@ -16,12 +16,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-
-type TagFilter = {
-    tagKeyId: string;
-    operator: 'eq' | 'lt' | 'gt' | 'prefix' | 'neq';
-    value: string;
-}
+import { TicketCard } from '../components/TicketCard'
 
 export default function Drafts() {
     const { organization_id } = useParams<{ organization_id: string }>()
@@ -244,7 +239,26 @@ export default function Drafts() {
 
             // Return both drafts and tag keys
             return {
-                drafts: draftsList,
+                drafts: draftsList.map(draft => ({
+                    ...draft,
+                    tags: {
+                        date: new Map(dateValues
+                            .filter(v => v.ticket_draft_id === draft.id)
+                            .map(v => [v.tag_key_id, v.value.toDateString()])),
+                        number: new Map(numberValues
+                            .filter(v => v.ticket_draft_id === draft.id)
+                            .map(v => [v.tag_key_id, v.value.toString()])),
+                        text: new Map(textValues
+                            .filter(v => v.ticket_draft_id === draft.id)
+                            .map(v => [v.tag_key_id, v.value])),
+                        enum: new Map(enumValues
+                            .filter(v => v.ticket_draft_id === draft.id)
+                            .map(v => {
+                                const option = enumOptionsMap.get(v.enum_option_id)
+                                return [v.tag_key_id, { value: option?.value || '', optionId: v.enum_option_id }]
+                            }))
+                    }
+                })),
                 tagKeys
             }
         },
@@ -302,30 +316,59 @@ export default function Drafts() {
                     </div>
                 )}
                 <div className="space-y-4">
-                    {drafts.drafts.map(draft => (
-                        <Card key={draft.id} className="w-full">
-                            <CardHeader>
-                                <CardTitle>
-                                    <Link to={`/organizations/${organization_id}/drafts/${draft.id}`} className="text-blue-600 hover:text-blue-800">
-                                        {draft.title}
-                                    </Link>
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex gap-2 mb-2">
-                                    <Badge className={getPriorityColor(draft.priority)}>
-                                        {draft.priority}
-                                    </Badge>
-                                    <Badge className={getStatusColor(draft.status)}>
-                                        {draft.status}
-                                    </Badge>
-                                </div>
-                                <p className="text-sm text-gray-600">
-                                    Created {draft.created_at ? formatDateTime(draft.created_at) : 'Unknown'}
-                                </p>
-                            </CardContent>
-                        </Card>
-                    ))}
+                    <TicketFilters
+                        tagKeys={drafts.tagKeys}
+                        tagFilters={tagFilters}
+                        setTagFilters={setTagFilters}
+                    />
+
+                    <div
+                        ref={parentRef}
+                        className="h-[calc(100vh-300px)] overflow-auto"
+                    >
+                        <div
+                            style={{
+                                height: `${rowVirtualizer.getTotalSize()}px`,
+                                width: '100%',
+                                position: 'relative',
+                            }}
+                        >
+                            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                const draft = drafts.drafts[virtualRow.index]
+                                return (
+                                    <div
+                                        key={draft.id}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            height: `${virtualRow.size}px`,
+                                            transform: `translateY(${virtualRow.start}px)`,
+                                        }}
+                                    >
+                                        <TicketCard
+                                            id={draft.id}
+                                            title={draft.title}
+                                            priority={draft.priority}
+                                            status={draft.status}
+                                            created_at={draft.created_at}
+                                            updated_at={draft.updated_at}
+                                            organization_id={organization_id!}
+                                            linkPath={`/${organization_id}/drafts/${draft.id}`}
+                                            tags={draft.tags ? {
+                                                keys: drafts.tagKeys,
+                                                values: draft.tags
+                                            } : undefined}
+                                            onTagClick={(filter) => {
+                                                setTagFilters(prev => [...prev, filter])
+                                            }}
+                                        />
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
