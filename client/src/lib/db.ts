@@ -74,6 +74,76 @@ export const MutationSchema = z.object({
     synced: z.number(),
 });
 
+// Define draft-related schemas
+export const TicketDraftSchema = z.object({
+    id: z.string().uuid(),
+    title: z.string(),
+    description: z.string().nullable(),
+    status: z.string(),
+    priority: z.string(),
+    draft_status: z.string(),
+    created_by: z.string().uuid(),
+    created_by_macro: z.string().uuid(),
+    assigned_to: z.string().uuid().nullable(),
+    organization_id: z.string().uuid(),
+    original_ticket_id: z.string().uuid().nullable(),
+    parent_draft_id: z.string().uuid().nullable(),
+    latency: z.number().nullable(),
+    created_at: z.string().nullable(),
+    updated_at: z.string().nullable(),
+    deleted_at: z.string().nullable(),
+});
+
+export const TicketDraftCommentSchema = z.object({
+    id: z.string().uuid(),
+    ticket_draft_id: z.string().uuid(),
+    user_id: z.string().uuid(),
+    comment: z.string(),
+    created_at: z.string().nullable(),
+    updated_at: z.string().nullable(),
+    deleted_at: z.string().nullable(),
+});
+
+export const TicketDraftTagDateValueSchema = z.object({
+    id: z.string().uuid(),
+    ticket_draft_id: z.string().uuid(),
+    tag_key_id: z.string().uuid(),
+    value: z.date(),
+    created_at: z.string().nullable(),
+    updated_at: z.string().nullable(),
+    deleted_at: z.string().nullable(),
+});
+
+export const TicketDraftTagNumberValueSchema = z.object({
+    id: z.string().uuid(),
+    ticket_draft_id: z.string().uuid(),
+    tag_key_id: z.string().uuid(),
+    value: z.number(),
+    created_at: z.string().nullable(),
+    updated_at: z.string().nullable(),
+    deleted_at: z.string().nullable(),
+});
+
+export const TicketDraftTagTextValueSchema = z.object({
+    id: z.string().uuid(),
+    ticket_draft_id: z.string().uuid(),
+    tag_key_id: z.string().uuid(),
+    value: z.string(),
+    created_at: z.string().nullable(),
+    updated_at: z.string().nullable(),
+    deleted_at: z.string().nullable(),
+});
+
+export const TicketDraftTagEnumValueSchema = z.object({
+    id: z.string().uuid(),
+    ticket_draft_id: z.string().uuid(),
+    tag_key_id: z.string().uuid(),
+    enum_option_id: z.string().uuid(),
+    created_at: z.string().nullable(),
+    updated_at: z.string().nullable(),
+    deleted_at: z.string().nullable(),
+});
+
 // Generate types from schemas
 export type Profile = z.infer<typeof ProfileSchema>;
 export type Organization = z.infer<typeof OrganizationSchema>;
@@ -93,6 +163,14 @@ export type TicketTagEnumOption = z.infer<typeof TicketTagEnumOptionSchema>;
 export type TicketTagEnumValue = z.infer<typeof TicketTagEnumValueSchema>;
 export type Macro = z.infer<typeof MacroSchema>;
 
+// Add draft-related types
+export type TicketDraft = z.infer<typeof TicketDraftSchema>;
+export type TicketDraftComment = z.infer<typeof TicketDraftCommentSchema>;
+export type TicketDraftTagDateValue = z.infer<typeof TicketDraftTagDateValueSchema>;
+export type TicketDraftTagNumberValue = z.infer<typeof TicketDraftTagNumberValueSchema>;
+export type TicketDraftTagTextValue = z.infer<typeof TicketDraftTagTextValueSchema>;
+export type TicketDraftTagEnumValue = z.infer<typeof TicketDraftTagEnumValueSchema>;
+
 // Define database class
 export class AutoCRMDatabase extends Dexie {
     profiles!: Table<Profile>;
@@ -110,6 +188,14 @@ export class AutoCRMDatabase extends Dexie {
     ticketTagEnumOptions!: Table<TicketTagEnumOption>;
     ticketTagEnumValues!: Table<TicketTagEnumValue>;
     macros!: Table<Macro>;
+
+    // Add draft-related tables
+    ticketDrafts!: Table<TicketDraft>;
+    ticketDraftComments!: Table<TicketDraftComment>;
+    ticketDraftTagDateValues!: Table<TicketDraftTagDateValue>;
+    ticketDraftTagNumberValues!: Table<TicketDraftTagNumberValue>;
+    ticketDraftTagTextValues!: Table<TicketDraftTagTextValue>;
+    ticketDraftTagEnumValues!: Table<TicketDraftTagEnumValue>;
 
     constructor() {
         super('auto-crm');
@@ -129,6 +215,14 @@ export class AutoCRMDatabase extends Dexie {
             ticketTagEnumOptions: '&id, tag_key_id, value, created_at, updated_at',
             ticketTagEnumValues: '&id, ticket_id, tag_key_id, enum_option_id, created_at, updated_at',
             macros: '&id, organization_id, created_at, updated_at',
+
+            // Add indexes for draft-related tables
+            ticketDrafts: '&id, title, status, priority, draft_status, created_by, created_by_macro, assigned_to, organization_id, original_ticket_id, parent_draft_id, latency, created_at, updated_at',
+            ticketDraftComments: '&id, ticket_draft_id, user_id, created_at, updated_at',
+            ticketDraftTagDateValues: '&id, ticket_draft_id, tag_key_id, value, created_at, updated_at',
+            ticketDraftTagNumberValues: '&id, ticket_draft_id, tag_key_id, value, created_at, updated_at',
+            ticketDraftTagTextValues: '&id, ticket_draft_id, tag_key_id, value, created_at, updated_at',
+            ticketDraftTagEnumValues: '&id, ticket_draft_id, tag_key_id, enum_option_id, created_at, updated_at',
         });
 
         // Add hooks to validate data
@@ -235,6 +329,49 @@ export class AutoCRMDatabase extends Dexie {
         });
         this.macros.hook('updating', (mods) => {
             MacroSchema.partial().parse(mods);
+        });
+
+        // Add hooks for draft-related tables
+        this.ticketDrafts.hook('creating', (_, obj) => {
+            TicketDraftSchema.parse(obj);
+        });
+        this.ticketDrafts.hook('updating', (mods) => {
+            TicketDraftSchema.partial().parse(mods);
+        });
+
+        this.ticketDraftComments.hook('creating', (_, obj) => {
+            TicketDraftCommentSchema.parse(obj);
+        });
+        this.ticketDraftComments.hook('updating', (mods) => {
+            TicketDraftCommentSchema.partial().parse(mods);
+        });
+
+        this.ticketDraftTagDateValues.hook('creating', (_, obj) => {
+            TicketDraftTagDateValueSchema.parse(obj);
+        });
+        this.ticketDraftTagDateValues.hook('updating', (mods) => {
+            TicketDraftTagDateValueSchema.partial().parse(mods);
+        });
+
+        this.ticketDraftTagNumberValues.hook('creating', (_, obj) => {
+            TicketDraftTagNumberValueSchema.parse(obj);
+        });
+        this.ticketDraftTagNumberValues.hook('updating', (mods) => {
+            TicketDraftTagNumberValueSchema.partial().parse(mods);
+        });
+
+        this.ticketDraftTagTextValues.hook('creating', (_, obj) => {
+            TicketDraftTagTextValueSchema.parse(obj);
+        });
+        this.ticketDraftTagTextValues.hook('updating', (mods) => {
+            TicketDraftTagTextValueSchema.partial().parse(mods);
+        });
+
+        this.ticketDraftTagEnumValues.hook('creating', (_, obj) => {
+            TicketDraftTagEnumValueSchema.parse(obj);
+        });
+        this.ticketDraftTagEnumValues.hook('updating', (mods) => {
+            TicketDraftTagEnumValueSchema.partial().parse(mods);
         });
     }
 }
