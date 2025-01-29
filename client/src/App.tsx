@@ -15,6 +15,8 @@ import Ticket from './pages/Ticket'
 import OrganizationLayout from './components/OrganizationLayout'
 import EmployeesPage from './pages/Employees'
 import AdminPage from './pages/Admin'
+import Drafts from './pages/Drafts'
+import Draft from './pages/Draft'
 
 function App() {
   const [queryClient] = useState(() => new QueryClient())
@@ -79,6 +81,8 @@ function App() {
               <Route index element={<div>Dashboard (Coming Soon)</div>} />
               <Route path="tickets" element={<Tickets />} />
               <Route path="tickets/:ticket_id" element={<Ticket />} />
+              <Route path="drafts" element={<Drafts />} />
+              <Route path="drafts/:draft_id" element={<Draft />} />
               <Route path="customers" element={<div>Customers (Coming Soon)</div>} />
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="admin" element={<AdminPage />} />

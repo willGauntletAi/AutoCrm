@@ -1,6 +1,6 @@
-import { DB } from '../../db';
-import { Selectable } from 'kysely';
 import { z } from 'zod';
+import type { DB } from '../../db/types';
+import type { Selectable } from 'kysely';
 import { MacroSchema } from '../../types/macros';
 
 // Define base schemas for each table
@@ -15,19 +15,11 @@ export const OrganizationSchema = z.object({
     name: z.string(),
 });
 
-export const OrganizationUpdateSchema = OrganizationSchema.extend({
-    id: z.string().uuid(),
-});
-
 export const ProfileOrganizationMemberSchema = z.object({
     id: z.string().uuid(),
     profile_id: z.string().uuid(),
     organization_id: z.string().uuid(),
     role: z.string().nullable(),
-});
-
-export const ProfileOrganizationMemberUpdateSchema = ProfileOrganizationMemberSchema.extend({
-    id: z.string(),
 });
 
 export const TicketSchema = z.object({
@@ -192,7 +184,7 @@ export const SyncOperationSchema = z.discriminatedUnion('operation', [
         data: z.object({ id: z.string().uuid() })
     }),
 
-    // Ticket Tag Value operations
+    // Tag Value operations
     z.object({
         operation: z.literal('create_ticket_tag_date_value'),
         data: TicketTagDateValueSchema
@@ -229,8 +221,6 @@ export const SyncOperationSchema = z.discriminatedUnion('operation', [
         operation: z.literal('delete_ticket_tag_text_value'),
         data: z.object({ id: z.string().uuid() })
     }),
-
-    // Add new operations for enum tags
     z.object({
         operation: z.literal('create_ticket_tag_enum_option'),
         data: TicketTagEnumOptionSchema
@@ -268,12 +258,26 @@ export const SyncOperationSchema = z.discriminatedUnion('operation', [
     z.object({
         operation: z.literal('delete_macro'),
         data: z.object({ id: z.string().uuid() })
-    }),
+    })
 ]);
 
 export const SyncInputSchema = z.array(SyncOperationSchema);
 
 export type SyncInput = z.infer<typeof SyncInputSchema>;
 export type TableRow<T extends TableName> = Selectable<DB[T]>;
-export type TableName = keyof Pick<DB, 'profiles' | 'organizations' | 'profile_organization_members' | 'tickets' | 'ticket_comments' | 'organization_invitations' | 'ticket_tag_keys' | 'ticket_tag_date_values' | 'ticket_tag_number_values' | 'ticket_tag_text_values' | 'ticket_tag_enum_options' | 'ticket_tag_enum_values' | 'macros'>;
+export type TableName = keyof Pick<DB,
+    'profiles' |
+    'organizations' |
+    'profile_organization_members' |
+    'tickets' |
+    'ticket_comments' |
+    'organization_invitations' |
+    'ticket_tag_keys' |
+    'ticket_tag_date_values' |
+    'ticket_tag_number_values' |
+    'ticket_tag_text_values' |
+    'ticket_tag_enum_options' |
+    'ticket_tag_enum_values' |
+    'macros'
+>;
 

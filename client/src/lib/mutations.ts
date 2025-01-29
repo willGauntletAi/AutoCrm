@@ -17,7 +17,7 @@ import {
     type TicketTagEnumOption,
     type TicketTagEnumValue,
     type Mutation,
-    type Macro
+    type Macro,
 } from './db';
 import { formatDateTagValue } from './utils';
 
