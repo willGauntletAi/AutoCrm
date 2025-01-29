@@ -16,6 +16,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 const navItems = [
     { name: 'Dashboard', path: '' },
     { name: 'Tickets', path: 'tickets' },
+    { name: 'Drafts', path: 'drafts' },
     { name: 'Customers', path: 'customers' },
     { name: 'Employees', path: 'employees' },
 ]
