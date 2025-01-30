@@ -136,7 +136,7 @@ export async function generateAITagSuggestions({ ticket, tagKeyIds, existingTags
         });
 
         const completion = await openai.chat.completions.create({
-            model: "gpt-4-turbo-preview",
+            model: "gpt-4o-mini",
             messages: [
                 {
                     role: "system",
@@ -235,7 +235,7 @@ export async function generateAIComment({ ticket, prompt: userPrompt, existingTa
     });
 
     const completion = await openai.chat.completions.create({
-        model: "gpt-4-turbo-preview",
+        model: "gpt-4o-mini",
         messages: [
             {
                 role: "system",
@@ -287,7 +287,7 @@ export async function generateAIStatusAndPriority({ ticket, suggestStatus, sugge
     };
 
     const completion = await openai.chat.completions.create({
-        model: "gpt-4-turbo-preview",
+        model: "gpt-4o-mini",
         messages: [
             {
                 role: "system",
