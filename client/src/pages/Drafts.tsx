@@ -324,7 +324,7 @@ export default function Drafts() {
 
                     <div
                         ref={parentRef}
-                        className="h-[calc(100vh-300px)] overflow-auto"
+                        className="h-[calc(100vh-180px)] overflow-auto"
                     >
                         <div
                             style={{
