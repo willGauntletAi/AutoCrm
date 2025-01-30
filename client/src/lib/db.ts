@@ -83,7 +83,6 @@ export const TicketDraftSchema = z.object({
     priority: z.string(),
     draft_status: z.string(),
     created_by: z.string().uuid(),
-    created_by_macro: z.string().uuid(),
     assigned_to: z.string().uuid().nullable(),
     organization_id: z.string().uuid(),
     original_ticket_id: z.string().uuid().nullable(),
@@ -217,7 +216,7 @@ export class AutoCRMDatabase extends Dexie {
             macros: '&id, organization_id, created_at, updated_at',
 
             // Add indexes for draft-related tables
-            ticketDrafts: '&id, title, status, priority, draft_status, created_by, created_by_macro, assigned_to, organization_id, original_ticket_id, parent_draft_id, latency, created_at, updated_at',
+            ticketDrafts: '&id, title, status, priority, draft_status, created_by, assigned_to, organization_id, original_ticket_id, parent_draft_id, latency, created_at, updated_at',
             ticketDraftComments: '&id, ticket_draft_id, user_id, created_at, updated_at',
             ticketDraftTagDateValues: '&id, ticket_draft_id, tag_key_id, value, created_at, updated_at',
             ticketDraftTagNumberValues: '&id, ticket_draft_id, tag_key_id, value, created_at, updated_at',

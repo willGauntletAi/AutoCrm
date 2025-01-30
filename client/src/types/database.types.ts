@@ -268,6 +268,48 @@ export type Database = {
           },
         ]
       }
+      ticket_draft_macros: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          macro_id: string
+          ticket_draft_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          macro_id: string
+          ticket_draft_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          macro_id?: string
+          ticket_draft_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_draft_macros_macro_id_fkey"
+            columns: ["macro_id"]
+            isOneToOne: false
+            referencedRelation: "macros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_draft_macros_ticket_draft_id_fkey"
+            columns: ["ticket_draft_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_draft_tag_date_values: {
         Row: {
           created_at: string | null
@@ -460,13 +502,14 @@ export type Database = {
           assigned_to: string | null
           created_at: string | null
           created_by: string
-          created_by_macro: string
           deleted_at: string | null
           description: string | null
           draft_status: string
           id: string
+          latency: number
           organization_id: string
           original_ticket_id: string | null
+          parent_draft_id: string | null
           priority: string
           status: string
           title: string
@@ -476,13 +519,14 @@ export type Database = {
           assigned_to?: string | null
           created_at?: string | null
           created_by: string
-          created_by_macro: string
           deleted_at?: string | null
           description?: string | null
           draft_status?: string
           id?: string
+          latency?: number
           organization_id: string
           original_ticket_id?: string | null
+          parent_draft_id?: string | null
           priority?: string
           status?: string
           title: string
@@ -492,13 +536,14 @@ export type Database = {
           assigned_to?: string | null
           created_at?: string | null
           created_by?: string
-          created_by_macro?: string
           deleted_at?: string | null
           description?: string | null
           draft_status?: string
           id?: string
+          latency?: number
           organization_id?: string
           original_ticket_id?: string | null
+          parent_draft_id?: string | null
           priority?: string
           status?: string
           title?: string
@@ -520,13 +565,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ticket_drafts_created_by_macro_fkey"
-            columns: ["created_by_macro"]
-            isOneToOne: false
-            referencedRelation: "macros"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ticket_drafts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -538,6 +576,13 @@ export type Database = {
             columns: ["original_ticket_id"]
             isOneToOne: false
             referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_drafts_parent_draft_id_fkey"
+            columns: ["parent_draft_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_drafts"
             referencedColumns: ["id"]
           },
         ]

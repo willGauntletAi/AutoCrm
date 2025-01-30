@@ -528,15 +528,14 @@ async function createDraftForTicket(
     ticketTags: TagValuesByTicket
 ): Promise<{ id: string }> {
     const draftInsert: InsertObject<'ticket_drafts'> = {
+        organization_id: organizationId,
+        created_by: userId,
         title: ticket.title,
         description: ticket.description,
         status: ticket.status,
         priority: ticket.priority,
         draft_status: 'unreviewed',
-        created_by: userId,
-        created_by_macro: macroId,
         assigned_to: ticket.assigned_to,
-        organization_id: organizationId,
         original_ticket_id: ticket.id
     };
 
@@ -545,6 +544,20 @@ async function createDraftForTicket(
         .values(draftInsert)
         .returning(['id'])
         .executeTakeFirstOrThrow();
+
+    // Create the association in the junction table
+    const macroAssociation: InsertObject<'ticket_draft_macros'> = {
+        id: crypto.randomUUID(),
+        ticket_draft_id: draft.id,
+        macro_id: macroId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    };
+
+    await db
+        .insertInto('ticket_draft_macros')
+        .values(macroAssociation)
+        .execute();
 
     // Copy over the tag values to the draft
     await Promise.all([

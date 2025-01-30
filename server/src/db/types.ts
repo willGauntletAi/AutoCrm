@@ -599,17 +599,27 @@ export interface TicketDraftComments {
   user_id: string;
 }
 
+export interface TicketDraftMacros {
+  created_at: Generated<Timestamp | null>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  macro_id: string;
+  ticket_draft_id: string;
+  updated_at: Generated<Timestamp | null>;
+}
+
 export interface TicketDrafts {
   assigned_to: string | null;
   created_at: Generated<Timestamp | null>;
   created_by: string;
-  created_by_macro: string;
   deleted_at: Timestamp | null;
   description: string | null;
   draft_status: Generated<string>;
   id: Generated<string>;
+  latency: Generated<Numeric>;
   organization_id: string;
   original_ticket_id: string | null;
+  parent_draft_id: string | null;
   priority: Generated<string>;
   status: Generated<string>;
   title: string;
@@ -801,6 +811,7 @@ export interface DB {
   "supabase_migrations.schema_migrations": SupabaseMigrationsSchemaMigrations;
   ticket_comments: TicketComments;
   ticket_draft_comments: TicketDraftComments;
+  ticket_draft_macros: TicketDraftMacros;
   ticket_draft_tag_date_values: TicketDraftTagDateValues;
   ticket_draft_tag_enum_values: TicketDraftTagEnumValues;
   ticket_draft_tag_number_values: TicketDraftTagNumberValues;
