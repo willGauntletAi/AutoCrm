@@ -728,7 +728,11 @@ function setupRealtimeSync() {
             if (payload.eventType === 'DELETE') {
                 await db.ticketDrafts.delete(payload.old.id);
             } else {
-                await db.ticketDrafts.put(payload.new);
+                await db.ticketDrafts.put({
+                    ...payload.new,
+                    parent_draft_id: payload.new.parent_draft_id ?? null,
+                    latency: payload.new.latency ?? 0
+                });
             }
         })
         .on('postgres_changes', {
