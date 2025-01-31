@@ -298,7 +298,7 @@ export function TicketCard({
     return (
         <>
             <Link to={linkPath}>
-                <Card className="hover:shadow-md transition-shadow h-[140px] mb-4">
+                <Card className="hover:shadow-md transition-shadow h-[10em] mb-4">
                     <CardHeader>
                         <div className="flex justify-between items-start">
                             <CardTitle>{title}</CardTitle>
