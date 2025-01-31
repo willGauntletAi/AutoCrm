@@ -386,9 +386,12 @@ export default function Draft() {
 
             // Update enum tag values
             for (const [tagKeyId, value] of draftState.tags.enum.entries()) {
-                const existingValue = tagData.values.enum.get(tagKeyId)
-                if (existingValue) {
-                    tagPromises.push(updateTicketTagEnumValue(existingValue.id, {
+                const existingTicketValue = await db.ticketTagEnumValues
+                    .where({ ticket_id: draftState.original_ticket_id, tag_key_id: tagKeyId })
+                    .first()
+
+                if (existingTicketValue) {
+                    tagPromises.push(updateTicketTagEnumValue(existingTicketValue.id, {
                         enum_option_id: value,
                         ticket_id: draftState.original_ticket_id
                     }))
@@ -474,7 +477,14 @@ export default function Draft() {
 
             // Update draft status based on whether all changes match the original draft
             const newStatus = basicFieldsMatch && allTagValuesMatch ? 'accepted' : 'partially_accepted'
-            await updateTicketDraftStatus(draftState.id, newStatus)
+            try {
+                await updateTicketDraftStatus(draftState.id, newStatus)
+                // Navigate back to drafts page only after successful status update
+                navigate(`/${organization_id}/drafts`)
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to update draft status')
+                return
+            }
 
             // Navigate back to drafts page
             navigate(`/${organization_id}/drafts`)
@@ -493,7 +503,14 @@ export default function Draft() {
             setError(null)
 
             // Mark the draft as rejected
-            await updateTicketDraftStatus(draftState.id, 'rejected')
+            try {
+                await updateTicketDraftStatus(draftState.id, 'rejected')
+                // Navigate back to drafts list only after successful status update
+                navigate(`/${organization_id}/drafts`)
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to update draft status')
+                return
+            }
 
             // Navigate back to drafts list
             navigate(`/${organization_id}/drafts`)

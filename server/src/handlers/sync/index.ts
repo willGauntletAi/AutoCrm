@@ -8,6 +8,7 @@ import { createDateTagValue, deleteDateTagValue, updateDateTagValue } from './da
 import { createEnumTagValue, deleteEnumTagValue, updateEnumTagValue } from './enumTagValue';
 import { createEnumTagOption, deleteEnumTagOption, updateEnumTagOption } from './enumTagOption';
 import { createMacro, deleteMacro, updateMacro } from './macros';
+import { updateTicketDraft } from './ticketDraft';
 
 interface Context {
     user: AuthUser,
@@ -32,6 +33,7 @@ interface SyncResponse {
     ticket_tag_enum_options?: TableRow<'ticket_tag_enum_options'>[];
     ticket_tag_enum_values?: TableRow<'ticket_tag_enum_values'>[];
     macros?: TableRow<'macros'>[];
+    ticket_drafts?: TableRow<'ticket_drafts'>[];
 }
 
 // Profile operations
@@ -1054,6 +1056,7 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
             }
 
             // Tag Value operations
+
             case 'create_ticket_tag_date_value': {
                 const result = await createDateTagValue(operation, ctx.user.organizations);
                 if (result) {
@@ -1205,8 +1208,18 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
                 }
                 break;
             }
+
+            case 'update_ticket_draft': {
+                const result = await updateTicketDraft(operation, memberships);
+                if (result) {
+                    response.ticket_drafts = response.ticket_drafts || [];
+                    response.ticket_drafts.push(result);
+                }
+                break;
+            }
         }
     }
 
+    console.log('Sync response:', response);
     return response;
 } 
