@@ -4,20 +4,11 @@ import { supabase } from '../lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { db } from '../lib/db'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { IS_INITIALIZED_KEY } from '../lib/sync-from-server'
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const [authLoading, setAuthLoading] = useState(true)
     const [user, setUser] = useState<User | null>(null)
     const location = useLocation()
-
-    const isInitialized = useLiveQuery(
-        async () => {
-            const record = await db.system.get(IS_INITIALIZED_KEY)
-            console.log('Initialization check:', { IS_INITIALIZED_KEY, record })
-            return record?.value === 'true'
-        }
-    )
 
     const profile = useLiveQuery(
         async () => {
