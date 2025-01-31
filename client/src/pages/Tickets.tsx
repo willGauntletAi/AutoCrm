@@ -341,7 +341,7 @@ export default function Tickets() {
                             >
                                 <TicketCard
                                     {...ticket}
-                                    linkPath={`/organizations/${organization_id}/tickets/${ticket.id}`}
+                                    linkPath={`/${organization_id}/tickets/${ticket.id}`}
                                     onTagClick={handleTagClick}
                                     tags={ticket.tags && tickets.tagKeys.length > 0 ? {
                                         keys: tickets.tagKeys,

@@ -269,7 +269,7 @@ export default function Drafts() {
                     setTagFilters={setTagFilters}
                 />
             </div>
-            <div ref={parentRef} className="flex flex-col gap-4">
+            <div ref={parentRef} className="flex flex-col gap-4 h-[calc(100vh-200px)] overflow-auto">
                 {virtualizer.getVirtualItems().map((virtualItem) => {
                     const draft = drafts.drafts[virtualItem.index]
                     if (!draft) return null
@@ -282,7 +282,7 @@ export default function Drafts() {
                         >
                             <TicketCard
                                 {...draft}
-                                linkPath={`/organizations/${organization_id}/drafts/${draft.id}`}
+                                linkPath={`/${organization_id}/drafts/${draft.id}`}
                                 onTagClick={handleTagClick}
                                 tags={draft.tags ? {
                                     keys: drafts.tagKeys,
