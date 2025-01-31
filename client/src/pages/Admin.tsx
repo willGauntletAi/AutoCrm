@@ -235,16 +235,15 @@ export default function AdminPage() {
                                                         )}
                                                     </div>
                                                     <div className="flex gap-2">
-                                                        <EditMacroDialog
-                                                            organizationId={organization_id!}
-                                                            macroId={macro.id}
-                                                            open={macroToEdit === macro.id}
-                                                            onOpenChange={(open) => {
-                                                                if (!open) {
-                                                                    setMacroToEdit(null);
-                                                                }
-                                                            }}
-                                                        />
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setMacroToEdit(macro.id)}
+                                                            className="flex items-center gap-2"
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                            Edit
+                                                        </Button>
                                                         <Button
                                                             variant="destructive"
                                                             size="sm"
@@ -290,6 +289,13 @@ export default function AdminPage() {
                 onOpenChange={(open) => !open && setTagToEdit(null)}
                 tagId={tagToEdit || ''}
                 onSuccess={() => setTagToEdit(null)}
+            />
+
+            <EditMacroDialog
+                organizationId={organization_id}
+                macroId={macroToEdit || ''}
+                open={macroToEdit !== null}
+                onOpenChange={(open) => !open && setMacroToEdit(null)}
             />
         </div>
     );

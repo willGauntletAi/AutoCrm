@@ -49,11 +49,6 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
         // Listen for auth changes
         const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             const currentUser = session?.user ?? null
-            console.log('Auth state changed:', {
-                event: _event,
-                userId: currentUser?.id,
-                email: currentUser?.email
-            })
             setUser(currentUser)
         })
 
@@ -62,22 +57,9 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
         }
     }, [])
 
-    console.log('ProtectedRoute state:', {
-        authLoading,
-        hasUser: !!user,
-        userId: user?.id,
-        hasProfile: !!profile,
-        profileState: profile === undefined ? 'loading' : profile === null ? 'not-found' : 'found',
-        isInitialized,
-        currentPath: location.pathname
-    })
 
     // Only show loading state during initial auth check or when profile is still loading
     if (authLoading || profile === undefined) {
-        console.log('Loading state:', {
-            authLoading,
-            profileUndefined: profile === undefined
-        })
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -86,16 +68,11 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     }
 
     if (!user) {
-        console.log('No user, redirecting to login')
         return <Navigate to="/login" state={{ from: location }} replace />
     }
 
     // Only redirect to profile page if we're sure the profile doesn't exist and we're not already on the create-profile page
     if (profile === null && location.pathname !== '/create-profile') {
-        console.log('No profile found, redirecting to create-profile', {
-            userId: user.id,
-            currentPath: location.pathname
-        })
         return <Navigate to="/create-profile" state={{ from: location }} replace />
     }
 
