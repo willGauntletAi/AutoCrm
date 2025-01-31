@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react'
 import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { Badge } from '../components/ui/badge'
 import { CreateTicketDialog } from '../components/CreateTicketDialog'
 import { db } from '../lib/db'
@@ -10,7 +9,6 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '@/lib/auth'
 import type { TicketTagKey } from '../lib/db'
 import { TicketFilters, type TagFilter } from '../components/TicketFilters'
-import { formatDateTagValue, formatDateTime } from '@/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { TicketCard } from '../components/TicketCard'
 import {
@@ -22,9 +20,7 @@ import {
 
 export default function Tickets() {
     const { organization_id } = useParams<{ organization_id: string }>()
-    const [error, setError] = useState<string | null>(null)
     const [isCreatingTicket, setIsCreatingTicket] = useState(false)
-    const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [tagFilters, setTagFilters] = useState<TagFilter[]>([])
     const { user } = useAuth()
     const parentRef = useRef<HTMLDivElement>(null)
@@ -263,11 +259,11 @@ export default function Tickets() {
         { tickets: [], tagKeys: [] }
     )
 
-    const rowVirtualizer = useVirtualizer({
-        count: tickets.tickets.length,
+    const virtualizer = useVirtualizer({
+        count: tickets?.tickets.length ?? 0,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => 200, // Estimated height of each ticket card in pixels
-        overscan: 5, // Number of items to render outside of the visible area
+        estimateSize: () => 100,
+        overscan: 5
     })
 
     const handleCreateTicket = async (data: { title: string; description: string; priority: 'high' | 'low' | 'medium' }) => {
@@ -275,7 +271,6 @@ export default function Tickets() {
 
         try {
             setIsCreatingTicket(true)
-            setError(null)
             await createTicket({
                 id: crypto.randomUUID(),
                 title: data.title,
@@ -286,164 +281,108 @@ export default function Tickets() {
                 created_by: user.id,
                 assigned_to: null,
             })
-            setIsDialogOpen(false)
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to create ticket')
-        } finally {
             setIsCreatingTicket(false)
+        } catch (err) {
+            console.error('Failed to create ticket:', err)
         }
     }
 
-    if (!tickets) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            </div>
-        )
+    const handleTagClick = (filter: TagFilter) => {
+        setTagFilters(prev => [...prev, filter])
     }
 
-    const getPriorityColor = (priority: string) => {
-        switch (priority.toLowerCase()) {
-            case 'high':
-                return 'bg-red-100 text-red-800'
-            case 'medium':
-                return 'bg-yellow-100 text-yellow-800'
-            case 'low':
-                return 'bg-green-100 text-green-800'
-            default:
-                return 'bg-gray-100 text-gray-800'
-        }
-    }
-
-    const getStatusColor = (status: string) => {
-        switch (status.toLowerCase()) {
-            case 'open':
-                return 'bg-blue-100 text-blue-800'
-            case 'in_progress':
-                return 'bg-yellow-100 text-yellow-800'
-            case 'closed':
-                return 'bg-gray-100 text-gray-800'
-            default:
-                return 'bg-gray-100 text-gray-800'
-        }
-    }
+    if (!tickets) return null
 
     return (
-        <div className="min-h-screen p-4">
-            <div className="max-w-4xl mx-auto">
-                <div className="mb-8">
-                    <div className="flex justify-between items-center mb-4">
-                        <h1 className="text-2xl font-bold">Tickets</h1>
-                        <Button onClick={() => setIsDialogOpen(true)}>
-                            Create Ticket
-                        </Button>
-                    </div>
-                    {error && (
-                        <div className="bg-red-50 text-red-600 p-4 rounded-md mb-4">
-                            {error}
-                        </div>
-                    )}
-                </div>
-
-                <div className="space-y-4">
-                    <TicketFilters
-                        tagKeys={tickets.tagKeys}
-                        tagFilters={tagFilters}
-                        setTagFilters={setTagFilters}
-                    />
-
-                    <div
-                        ref={parentRef}
-                        className="h-[calc(100vh-300px)] overflow-auto"
-                    >
-                        <div
-                            style={{
-                                height: `${rowVirtualizer.getTotalSize()}px`,
-                                width: '100%',
-                                position: 'relative',
-                            }}
-                        >
-                            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                                const ticket = tickets.tickets[virtualRow.index]
-                                return (
-                                    <div
-                                        key={ticket.id}
-                                        style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            width: '100%',
-                                            height: `${virtualRow.size}px`,
-                                            transform: `translateY(${virtualRow.start}px)`,
-                                        }}
-                                    >
-                                        <TicketCard
-                                            id={ticket.id}
-                                            title={ticket.title}
-                                            priority={ticket.priority}
-                                            status={ticket.status}
-                                            created_at={ticket.created_at}
-                                            updated_at={ticket.updated_at}
-                                            description={ticket.description || undefined}
-                                            organization_id={organization_id!}
-                                            linkPath={`/${organization_id}/tickets/${ticket.id}`}
-                                            tags={ticket.tags}
-                                            onTagClick={(filter) => {
-                                                setTagFilters(prev => [...prev, filter])
-                                            }}
-                                        />
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </div>
-                </div>
-
-                <CreateTicketDialog
-                    open={isDialogOpen}
-                    onOpenChange={setIsDialogOpen}
-                    onSubmit={handleCreateTicket}
-                    isLoading={isCreatingTicket}
-                />
-
-                <Dialog
-                    open={selectedTicketTags !== null}
-                    onOpenChange={(open) => {
-                        if (!open) setSelectedTicketTags(null);
-                    }}
+        <div className="flex flex-col gap-4 p-4">
+            <div className="flex justify-between items-center">
+                <Button
+                    onClick={() => setIsCreatingTicket(true)}
                 >
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Tags for {selectedTicketTags?.title}</DialogTitle>
-                        </DialogHeader>
-                        <div className="flex flex-wrap gap-2">
-                            {selectedTicketTags?.tags.map((tag) => (
-                                <Badge
-                                    key={tag.key.id}
-                                    variant="outline"
-                                    className="bg-blue-50 cursor-pointer hover:bg-blue-100"
-                                    onClick={() => {
-                                        setTagFilters(prev => [
-                                            ...prev,
-                                            {
-                                                tagKeyId: tag.key.id,
-                                                operator: tag.key.tag_type === 'text' ? 'eq' :
-                                                    tag.key.tag_type === 'enum' ? 'eq' : 'eq',
-                                                value: tag.key.tag_type === 'enum' ?
-                                                    tag.value :
-                                                    tag.value
-                                            }
-                                        ]);
-                                        setSelectedTicketTags(null);
-                                    }}
-                                >
-                                    {tag.key.name}: {tag.value}
-                                </Badge>
-                            ))}
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                    Create Ticket
+                </Button>
             </div>
+
+            <div className="flex flex-col gap-4">
+                <TicketFilters
+                    tagKeys={tickets.tagKeys}
+                    tagFilters={tagFilters}
+                    setTagFilters={setTagFilters}
+                />
+            </div>
+
+            <div ref={parentRef} className="flex flex-col gap-4">
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                    const ticket = tickets.tickets[virtualItem.index]
+                    if (!ticket) return null
+
+                    return (
+                        <div
+                            key={virtualItem.key}
+                            data-index={virtualItem.index}
+                            ref={virtualizer.measureElement}
+                        >
+                            <TicketCard
+                                {...ticket}
+                                linkPath={`/organizations/${organization_id}/tickets/${ticket.id}`}
+                                onTagClick={handleTagClick}
+                                description={ticket.description || undefined}
+                                tags={ticket.tags && tickets.tagKeys.length > 0 ? {
+                                    keys: tickets.tagKeys,
+                                    values: ticket.tags.values
+                                } : undefined}
+                            />
+                        </div>
+                    )
+                })}
+            </div>
+
+            {isCreatingTicket && (
+                <CreateTicketDialog
+                    open={isCreatingTicket}
+                    onOpenChange={setIsCreatingTicket}
+                    onSubmit={handleCreateTicket}
+                    isLoading={false}
+                />
+            )}
+
+            <Dialog
+                open={selectedTicketTags !== null}
+                onOpenChange={(open) => {
+                    if (!open) setSelectedTicketTags(null);
+                }}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Tags for {selectedTicketTags?.title}</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex flex-wrap gap-2">
+                        {selectedTicketTags?.tags.map((tag) => (
+                            <Badge
+                                key={tag.key.id}
+                                variant="outline"
+                                className="bg-blue-50 cursor-pointer hover:bg-blue-100"
+                                onClick={() => {
+                                    setTagFilters(prev => [
+                                        ...prev,
+                                        {
+                                            tagKeyId: tag.key.id,
+                                            operator: tag.key.tag_type === 'text' ? 'eq' :
+                                                tag.key.tag_type === 'enum' ? 'eq' : 'eq',
+                                            value: tag.key.tag_type === 'enum' ?
+                                                tag.value :
+                                                tag.value
+                                        }
+                                    ]);
+                                    setSelectedTicketTags(null);
+                                }}
+                            >
+                                {tag.key.name}: {tag.value}
+                            </Badge>
+                        ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 } 

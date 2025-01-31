@@ -29,7 +29,6 @@ import {
     createTicketTagTextValue,
     createTicketTagEnumValue
 } from '../lib/mutations'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { useAuth } from '@/lib/auth'
 import type { TicketTagKey } from '../lib/db'
 import { formatDateTime, parseYMDDateString } from '@/lib/utils'

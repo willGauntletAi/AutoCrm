@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { db } from '../../db';
 import { type MacroRequirements, type MacroData, type MacroActions, MacroDataSchema } from './types';
-import { Insertable, Selectable, ValueExpression } from 'kysely';
+import { Insertable, Selectable } from 'kysely';
 import type { DB } from '../../db/types';
 import { generateAIComment, generateAIStatusAndPriority, generateAITagSuggestions } from './ai';
 import { TagValuesByTicket } from './types';

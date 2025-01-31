@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { formatDateTime } from '@/lib/utils'
 import type { TicketTagKey } from '@/lib/db'
 import type { TagFilter } from './TicketFilters'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import {
     Dialog,
     DialogContent,
@@ -109,14 +109,12 @@ function TagsDialog({
 }
 
 export function TicketCard({
-    id,
     title,
     priority,
     status,
     created_at,
     updated_at,
     description,
-    organization_id,
     linkPath,
     tags,
     onTagClick

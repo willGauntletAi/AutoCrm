@@ -1,34 +1,15 @@
 import { useState, useRef } from 'react'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { useParams, Link } from 'react-router-dom'
-import { Badge } from '../components/ui/badge'
+import { useParams } from 'react-router-dom'
 import { db } from '../lib/db'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useAuth } from '@/lib/auth'
-import type { TicketTagKey } from '../lib/db'
 import { TicketFilters, type TagFilter } from '../components/TicketFilters'
-import { formatDateTagValue, formatDateTime } from '@/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog"
 import { TicketCard } from '../components/TicketCard'
 
 export default function Drafts() {
     const { organization_id } = useParams<{ organization_id: string }>()
-    const [error, setError] = useState<string | null>(null)
     const [tagFilters, setTagFilters] = useState<TagFilter[]>([])
-    const { user } = useAuth()
     const parentRef = useRef<HTMLDivElement>(null)
-    const [selectedTicketTags, setSelectedTicketTags] = useState<{
-        ticketId: string;
-        title: string;
-        tags: Array<{ key: TicketTagKey; value: string }>;
-    } | null>(null)
 
     const drafts = useLiveQuery(
         async () => {
@@ -266,110 +247,52 @@ export default function Drafts() {
         { drafts: [], tagKeys: [] }
     )
 
-    const rowVirtualizer = useVirtualizer({
-        count: drafts.drafts.length,
+    const virtualizer = useVirtualizer({
+        count: drafts?.drafts.length ?? 0,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => 200,
-        overscan: 5,
+        estimateSize: () => 100,
+        overscan: 5
     })
 
-    if (!drafts) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            </div>
-        )
+    const handleTagClick = (filter: TagFilter) => {
+        setTagFilters(prev => [...prev, filter])
     }
 
-    const getPriorityColor = (priority: string) => {
-        switch (priority.toLowerCase()) {
-            case 'high':
-                return 'bg-red-100 text-red-800'
-            case 'medium':
-                return 'bg-yellow-100 text-yellow-800'
-            case 'low':
-                return 'bg-green-100 text-green-800'
-            default:
-                return 'bg-gray-100 text-gray-800'
-        }
-    }
-
-    const getStatusColor = (status: string) => {
-        switch (status.toLowerCase()) {
-            case 'open':
-                return 'bg-blue-100 text-blue-800'
-            case 'in_progress':
-                return 'bg-yellow-100 text-yellow-800'
-            case 'closed':
-                return 'bg-gray-100 text-gray-800'
-            default:
-                return 'bg-gray-100 text-gray-800'
-        }
-    }
+    if (!drafts) return null
 
     return (
-        <div className="min-h-screen p-4">
-            <div className="max-w-4xl mx-auto">
-                {error && (
-                    <div className="mb-4 p-4 bg-red-100 text-red-800 rounded">
-                        {error}
-                    </div>
-                )}
-                <div className="space-y-4">
-                    <TicketFilters
-                        tagKeys={drafts.tagKeys}
-                        tagFilters={tagFilters}
-                        setTagFilters={setTagFilters}
-                    />
+        <div className="flex flex-col gap-4 p-4">
+            <div className="flex flex-col gap-4">
+                <TicketFilters
+                    tagKeys={drafts.tagKeys}
+                    tagFilters={tagFilters}
+                    setTagFilters={setTagFilters}
+                />
+            </div>
+            <div ref={parentRef} className="flex flex-col gap-4">
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                    const draft = drafts.drafts[virtualItem.index]
+                    if (!draft) return null
 
-                    <div
-                        ref={parentRef}
-                        className="h-[calc(100vh-180px)] overflow-auto"
-                    >
+                    return (
                         <div
-                            style={{
-                                height: `${rowVirtualizer.getTotalSize()}px`,
-                                width: '100%',
-                                position: 'relative',
-                            }}
+                            key={virtualItem.key}
+                            data-index={virtualItem.index}
+                            ref={virtualizer.measureElement}
                         >
-                            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                                const draft = drafts.drafts[virtualRow.index]
-                                return (
-                                    <div
-                                        key={draft.id}
-                                        style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            width: '100%',
-                                            height: `${virtualRow.size}px`,
-                                            transform: `translateY(${virtualRow.start}px)`,
-                                        }}
-                                    >
-                                        <TicketCard
-                                            id={draft.id}
-                                            title={draft.title}
-                                            priority={draft.priority}
-                                            status={draft.status}
-                                            created_at={draft.created_at}
-                                            updated_at={draft.updated_at}
-                                            organization_id={organization_id!}
-                                            linkPath={`/${organization_id}/drafts/${draft.id}`}
-                                            tags={draft.tags ? {
-                                                keys: drafts.tagKeys,
-                                                values: draft.tags
-                                            } : undefined}
-                                            onTagClick={(filter) => {
-                                                setTagFilters(prev => [...prev, filter])
-                                            }}
-                                        />
-                                    </div>
-                                )
-                            })}
+                            <TicketCard
+                                {...draft}
+                                linkPath={`/organizations/${organization_id}/drafts/${draft.id}`}
+                                onTagClick={handleTagClick}
+                                description={draft.description || undefined}
+                                tags={draft.tags ? {
+                                    keys: drafts.tagKeys,
+                                    values: draft.tags
+                                } : undefined}
+                            />
                         </div>
-                    </div>
-                </div>
+                    )
+                })}
             </div>
         </div>
     )
