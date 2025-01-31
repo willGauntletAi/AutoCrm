@@ -4,7 +4,7 @@ import { TagValuesByTicket } from './types';
 import { OpenAI } from 'openai';
 import { env } from '../../utils/env';
 import { db } from '../../db';
-import { createTagSuggestionPrompt, createCommentPrompt, createStatusAndPriorityPrompt } from './prompts';
+import { createTagSuggestionPrompt, createCommentPrompt, createStatusAndPriorityPrompt, createNextMacroPrompt } from './prompts';
 
 const openai = new OpenAI({
     apiKey: env.OPENAI_API_KEY
@@ -32,6 +32,13 @@ interface GenerateAIStatusAndPriorityParams {
     ticket: Selectable<DB['tickets']>;
     suggestStatus: boolean;
     suggestPriority: boolean;
+    existingTags: TagValuesByTicket;
+}
+
+interface SelectNextMacroParams {
+    ticket: Selectable<DB['tickets']>;
+    draft: { id: string; content?: string | null };
+    childMacros: Array<{ id: string; name: string; description: string | null }>;
     existingTags: TagValuesByTicket;
 }
 
@@ -367,4 +374,94 @@ export async function generateAIStatusAndPriority({ ticket, suggestStatus, sugge
         status: suggestStatus ? args.status : undefined,
         priority: suggestPriority ? args.priority : undefined
     };
+}
+
+export async function selectNextMacro({ ticket, draft, childMacros, existingTags }: SelectNextMacroParams): Promise<string | null> {
+    if (childMacros.length === 0) return null;
+
+    const prompt = createNextMacroPrompt({ ticket, draft, childMacros });
+
+    // Define the function schema
+    const functionSchema = {
+        name: 'select_next_macro',
+        description: 'Select the next macro to apply in the chain',
+        parameters: {
+            type: 'object',
+            required: ['macroName'],
+            properties: {
+                macroName: {
+                    type: 'string',
+                    enum: [...childMacros.map(m => m.name), 'none'],
+                    description: 'The name of the selected macro, or "none" if no macro should be applied'
+                },
+                reasoning: {
+                    type: 'string',
+                    description: 'A brief explanation of why this macro was selected or why none was chosen'
+                }
+            }
+        }
+    };
+
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+            { role: 'system', content: 'You are a helpful assistant that selects the most appropriate macro to apply next in a support ticket workflow.' },
+            { role: 'user', content: prompt }
+        ],
+        tools: [{
+            type: 'function',
+            function: functionSchema
+        }],
+        tool_choice: { type: 'function', function: { name: 'select_next_macro' } },
+        temperature: 0
+    });
+
+    const functionCall = response?.choices[0]?.message?.tool_calls?.[0]?.function;
+    if (!functionCall?.arguments) return null;
+
+    const args = JSON.parse(functionCall.arguments);
+
+    // Type guard to check if args has the expected shape
+    function isValidResponse(args: unknown): args is { macroName: string; reasoning?: string } {
+        if (typeof args !== 'object' || args === null) {
+            console.error('[Next Macro] Invalid response: not an object');
+            return false;
+        }
+
+        if (!('macroName' in args)) {
+            console.error('[Next Macro] Invalid response: missing macroName');
+            return false;
+        }
+
+        if (typeof args.macroName !== 'string') {
+            console.error('[Next Macro] Invalid response: macroName is not a string');
+            return false;
+        }
+
+        if (args.macroName !== 'none' && !childMacros.some(m => m.name === args.macroName)) {
+            console.error(`[Next Macro] Invalid response: invalid macroName ${args.macroName}`);
+            return false;
+        }
+
+        if ('reasoning' in args && typeof args.reasoning !== 'string') {
+            console.error('[Next Macro] Invalid response: reasoning is not a string');
+            return false;
+        }
+
+        return true;
+    }
+
+    if (!isValidResponse(args)) {
+        console.error('[Next Macro] Invalid response format from function call');
+        return null;
+    }
+
+    if (args.reasoning) {
+        console.log(`[Next Macro] Selected ${args.macroName === 'none' ? 'none' : `macro "${args.macroName}"`} because: ${args.reasoning}`);
+    }
+
+    // Convert the selected name back to an ID
+    if (args.macroName === 'none') return null;
+    const selectedMacro = childMacros.find(m => m.name === args.macroName);
+    return selectedMacro?.id ?? null;
 }

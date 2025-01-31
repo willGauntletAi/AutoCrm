@@ -3,7 +3,7 @@ import { db } from '../../db';
 import { type MacroRequirements, type MacroData, type MacroActions, MacroDataSchema } from './types';
 import { Insertable, Selectable } from 'kysely';
 import type { DB } from '../../db/types';
-import { generateAIComment, generateAIStatusAndPriority, generateAITagSuggestions } from './ai';
+import { generateAIComment, generateAIStatusAndPriority, generateAITagSuggestions, selectNextMacro } from './ai';
 import { TagValuesByTicket } from './types';
 
 type TableName = keyof DB;
@@ -620,56 +620,259 @@ async function createDraftForTicket(
     return draft;
 }
 
-export async function applyMacro({ macroId, ticketIds, organizationId, userId, organizationRoles }: ApplyMacroParams) {
-    // Step 1: Validate user permissions and get macro data
+interface ChildMacro {
+    id: string;
+    name: string;
+    description: string | null;
+}
+
+async function applyRegularActionsToTicketDraft(
+    draft: { id: string },
+    actions: MacroActions,
+    userId: string,
+    timestamp: string
+) {
+    // Update draft status and priority if specified
+    if (actions.new_status || actions.new_priority) {
+        await db
+            .updateTable('ticket_drafts')
+            .set({
+                ...(actions.new_status ? { status: actions.new_status } : {}),
+                ...(actions.new_priority ? { priority: actions.new_priority } : {}),
+                updated_at: timestamp
+            })
+            .where('id', '=', draft.id)
+            .execute();
+    }
+
+    // Remove specified tags
+    if (actions.tag_keys_to_remove.length > 0) {
+        await Promise.all([
+            db.updateTable('ticket_draft_tag_date_values')
+                .set({ deleted_at: timestamp })
+                .where('ticket_draft_id', '=', draft.id)
+                .where('tag_key_id', 'in', actions.tag_keys_to_remove)
+                .execute(),
+            db.updateTable('ticket_draft_tag_number_values')
+                .set({ deleted_at: timestamp })
+                .where('ticket_draft_id', '=', draft.id)
+                .where('tag_key_id', 'in', actions.tag_keys_to_remove)
+                .execute(),
+            db.updateTable('ticket_draft_tag_text_values')
+                .set({ deleted_at: timestamp })
+                .where('ticket_draft_id', '=', draft.id)
+                .where('tag_key_id', 'in', actions.tag_keys_to_remove)
+                .execute(),
+            db.updateTable('ticket_draft_tag_enum_values')
+                .set({ deleted_at: timestamp })
+                .where('ticket_draft_id', '=', draft.id)
+                .where('tag_key_id', 'in', actions.tag_keys_to_remove)
+                .execute()
+        ]);
+    }
+
+    // Add or update tags
+    const { date_tags, number_tags, text_tags, enum_tags } = actions.tags_to_modify;
+
+    // Handle date tags
+    for (const [tagKeyId, value] of Object.entries(date_tags)) {
+        const date = new Date();
+        date.setDate(date.getDate() + Number(value));
+
+        await db
+            .insertInto('ticket_draft_tag_date_values')
+            .values({
+                ticket_draft_id: draft.id,
+                tag_key_id: tagKeyId,
+                value: date
+            })
+            .execute();
+    }
+
+    // Handle number tags
+    for (const [tagKeyId, value] of Object.entries(number_tags)) {
+        await db
+            .insertInto('ticket_draft_tag_number_values')
+            .values({
+                ticket_draft_id: draft.id,
+                tag_key_id: tagKeyId,
+                value: value.toString()
+            })
+            .execute();
+    }
+
+    // Handle text tags
+    for (const [tagKeyId, value] of Object.entries(text_tags)) {
+        await db
+            .insertInto('ticket_draft_tag_text_values')
+            .values({
+                ticket_draft_id: draft.id,
+                tag_key_id: tagKeyId,
+                value
+            })
+            .execute();
+    }
+
+    // Handle enum tags
+    for (const [tagKeyId, enumOptionId] of Object.entries(enum_tags)) {
+        await db
+            .insertInto('ticket_draft_tag_enum_values')
+            .values({
+                ticket_draft_id: draft.id,
+                tag_key_id: tagKeyId,
+                enum_option_id: enumOptionId
+            })
+            .execute();
+    }
+
+    // Add comment if specified
+    if (actions.comment) {
+        await db
+            .insertInto('ticket_draft_comments')
+            .values({
+                ticket_draft_id: draft.id,
+                user_id: userId,
+                comment: actions.comment
+            })
+            .execute();
+    }
+}
+
+async function applyMacroChain(
+    ticket: Selectable<DB['tickets']>,
+    macroId: string,
+    userId: string,
+    organizationId: string,
+    organizationRoles: Record<string, string>,
+    ticketTags: TagValuesByTicket,
+    visitedMacros: Map<string, number> = new Map(),
+    existingDraft?: { id: string }
+): Promise<{ id: string }> {
+    // Check visit count for this macro
+    const visitCount = visitedMacros.get(macroId) || 0;
+    if (visitCount >= 3) {
+        // If we've already visited this macro 3 times, return the current draft
+        return existingDraft || { id: crypto.randomUUID() };
+    }
+    visitedMacros.set(macroId, visitCount + 1);
+
+    // Validate and get macro data
     const macroData = await validateUserAndMacro({ macroId, organizationId, organizationRoles });
 
-    // Step 2: Get tickets and their tag values
-    const { tickets, tagValuesByTicket } = await getTicketsAndTagValues({ ticketIds, organizationId });
+    // If this is a new macro being applied to an existing draft, create the association
+    if (existingDraft) {
+        const macroAssociation: InsertObject<'ticket_draft_macros'> = {
+            id: crypto.randomUUID(),
+            ticket_draft_id: existingDraft.id,
+            macro_id: macroId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
 
-    // Step 3: Filter tickets that meet requirements
-    const validTickets = filterValidTickets(tickets, tagValuesByTicket, macroData.requirements);
+        await db
+            .insertInto('ticket_draft_macros')
+            .values(macroAssociation)
+            .execute();
+    }
+    // Create initial draft or use existing one
+    const draft = existingDraft || await createDraftForTicket(ticket, macroId, userId, organizationId, ticketTags);
+
+
+    // Apply regular actions if present
+    if (macroData.actions) {
+        await applyRegularActionsToTicketDraft(draft, macroData.actions, userId, new Date().toISOString());
+    }
+
+    // Apply AI actions if present
+    if (macroData.aiActions) {
+        await applyAIActions(ticket, draft, macroData.aiActions, userId, ticketTags);
+    }
+
+    // Get child macros
+    const childMacros = await db
+        .selectFrom('macros')
+        .innerJoin('macro_chains', 'macro_chains.child_macro_id', 'macros.id')
+        .select([
+            'macros.id',
+            'macros.macro as macro_data',
+            'macros.organization_id'
+        ])
+        .where('macro_chains.parent_macro_id', '=', macroId)
+        .where('macros.organization_id', '=', organizationId)
+        .where('macros.deleted_at', 'is', null)
+        .where('macro_chains.deleted_at', 'is', null)
+        .execute()
+        .then(macros => macros.map(macro => {
+            const macroData = MacroDataSchema.safeParse(macro.macro_data);
+            if (!macroData.success) return null;
+            return {
+                id: macro.id,
+                name: macroData.data.name,
+                description: macroData.data.description ?? null
+            };
+        }))
+        .then(macros => macros.filter((macro): macro is NonNullable<typeof macro> => macro !== null));
+
+    if (childMacros.length > 0) {
+        // Get the draft content for context
+        const draftContent = await db
+            .selectFrom('ticket_drafts')
+            .select(['description'])
+            .where('id', '=', draft.id)
+            .executeTakeFirst();
+
+        // Select next macro to apply
+        const nextMacroId = await selectNextMacro({
+            ticket,
+            draft: { id: draft.id, content: draftContent?.description },
+            childMacros,
+            existingTags: ticketTags
+        });
+
+        if (nextMacroId) {
+            // Apply the next macro in the chain to the same draft
+            return applyMacroChain(
+                ticket,
+                nextMacroId,
+                userId,
+                organizationId,
+                organizationRoles,
+                ticketTags,
+                visitedMacros,
+                draft // Pass the current draft to be reused
+            );
+        }
+    }
+
+    return draft;
+}
+
+export async function applyMacro({ macroId, ticketIds, organizationId, userId, organizationRoles }: ApplyMacroParams) {
+    const macroData = await validateUserAndMacro({ macroId, organizationId, organizationRoles });
+    const { tickets, tagValuesByTicket } = await getTicketsAndTagValues({ ticketIds, organizationId });
+    const validTickets = filterValidTickets(tickets, tagValuesByTicket, macroData.requirements || {});
 
     if (validTickets.length === 0) {
         throw new TRPCError({
             code: 'BAD_REQUEST',
-            message: 'No tickets meet the macro requirements'
+            message: 'No tickets match the macro requirements'
         });
     }
 
-    const timestamp = new Date().toISOString();
-
-    // Step 4: Apply regular actions if any exist
-    if (macroData.actions.new_status || macroData.actions.new_priority || macroData.actions.tag_keys_to_remove.length > 0 ||
-        Object.keys(macroData.actions.tags_to_modify.date_tags).length > 0 ||
-        Object.keys(macroData.actions.tags_to_modify.number_tags).length > 0 ||
-        Object.keys(macroData.actions.tags_to_modify.text_tags).length > 0 ||
-        Object.keys(macroData.actions.tags_to_modify.enum_tags).length > 0 ||
-        macroData.actions.comment) {
-
-        const validTicketIds = await applyRegularActions(validTickets, macroData.actions, userId, tagValuesByTicket, timestamp);
-        return { appliedToTickets: validTicketIds };
+    // Apply regular actions if present
+    if (macroData.actions) {
+        await applyRegularActions(validTickets, macroData.actions, userId, tagValuesByTicket, new Date().toISOString());
     }
 
-    // Step 5: Handle AI actions if present
-    if (macroData.aiActions) {
-        const drafts = await Promise.all(validTickets.map(async ticket => {
-            // Create draft with ticket data
-            const draft = await createDraftForTicket(ticket, macroId, userId, organizationId, tagValuesByTicket[ticket.id]);
-
-            // Apply AI actions to the draft
-            await applyAIActions(ticket, draft, macroData.aiActions!, userId, tagValuesByTicket[ticket.id]);
-
-            return draft.id;
-        }));
-
-        return {
-            createdDrafts: drafts,
-            appliedToTickets: [] // No direct changes were made to tickets
-        };
-    }
+    // Apply macro chain for each ticket
+    const drafts = await Promise.all(
+        validTickets.map(ticket =>
+            applyMacroChain(ticket, macroId, userId, organizationId, organizationRoles, tagValuesByTicket[ticket.id])
+        )
+    );
 
     return {
-        appliedToTickets: validTickets.map(t => t.id)
+        ticketIds: validTickets.map(t => t.id),
+        draftIds: drafts.map(d => d.id)
     };
 } 

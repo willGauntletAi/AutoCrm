@@ -104,6 +104,39 @@ Existing Tags:
 ${formatExistingTags(existingTags)}`;
 }
 
+export function createNextMacroPrompt({
+    ticket,
+    draft,
+    childMacros
+}: {
+    ticket: Selectable<DB['tickets']>;
+    draft: { id: string; content?: string | null };
+    childMacros: Array<{ id: string; name: string; description: string | null }>;
+}) {
+    return `Given a support ticket and its current draft state, select the most appropriate next macro to apply from the available options.
+
+Ticket:
+Title: ${ticket.title}
+Description: ${ticket.description || 'No description'}
+Status: ${ticket.status}
+Priority: ${ticket.priority}
+
+Current Draft:
+${draft.content || '(No changes yet)'}
+
+Available Macros:
+${childMacros.map(macro => `- ${macro.name}: ${macro.description || 'No description'}`).join('\n')}
+
+Based on the ticket content and current draft state, which macro would be most appropriate to apply next? Respond with just the ID of the chosen macro, or "none" if no macro is appropriate.
+
+Choose "none" if:
+1. The draft already seems complete and appropriate
+2. None of the available macros would improve the response
+3. Applying another macro might make the response worse
+
+Response format: Just the macro name or "none"`;
+}
+
 function formatComments(comments: Selectable<DB['ticket_comments']>[]): string {
     if (comments.length === 0) return 'No comments';
     return comments.map(comment =>
