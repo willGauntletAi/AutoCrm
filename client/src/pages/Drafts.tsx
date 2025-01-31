@@ -284,7 +284,6 @@ export default function Drafts() {
                                 {...draft}
                                 linkPath={`/organizations/${organization_id}/drafts/${draft.id}`}
                                 onTagClick={handleTagClick}
-                                description={draft.description || undefined}
                                 tags={draft.tags ? {
                                     keys: drafts.tagKeys,
                                     values: draft.tags
