@@ -842,6 +842,8 @@ async function applyMacroChain(
 }
 
 export async function applyMacro({ macroId, ticketIds, organizationId, userId, organizationRoles }: ApplyMacroParams) {
+    const startTime = performance.now();
+
     const macroData = await validateUserAndMacro({ macroId, organizationId, organizationRoles });
     const { tickets, tagValuesByTicket } = await getTicketsAndTagValues({ ticketIds, organizationId });
     const validTickets = filterValidTickets(tickets, tagValuesByTicket, macroData.requirements || {});
@@ -862,6 +864,20 @@ export async function applyMacro({ macroId, ticketIds, organizationId, userId, o
     const drafts = await Promise.all(
         validTickets.map(ticket =>
             applyMacroChain(ticket, macroId, userId, organizationId, organizationRoles, tagValuesByTicket[ticket.id])
+        )
+    );
+
+    // Calculate total latency in milliseconds and update drafts
+    const endTime = performance.now();
+    const totalLatency = endTime - startTime;
+
+    // Update latency for all drafts
+    await Promise.all(
+        drafts.map(draft =>
+            db.updateTable('ticket_drafts')
+                .set({ latency: totalLatency })
+                .where('id', '=', draft.id)
+                .execute()
         )
     );
 

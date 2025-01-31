@@ -17,6 +17,7 @@ import EmployeesPage from './pages/Employees'
 import AdminPage from './pages/Admin'
 import Drafts from './pages/Drafts'
 import Draft from './pages/Draft'
+import MacroDetails from '@/pages/MacroDetails'
 
 function App() {
   const [queryClient] = useState(() => new QueryClient())
@@ -87,6 +88,7 @@ function App() {
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="admin" element={<AdminPage />} />
               <Route path="profile" element={<Profile />} />
+              <Route path="macros/:macroId" element={<MacroDetails />} />
             </Route>
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

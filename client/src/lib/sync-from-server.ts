@@ -9,7 +9,8 @@ import type {
     TicketDraftTagDateValue,
     TicketDraftTagNumberValue,
     TicketDraftTagTextValue,
-    TicketDraftTagEnumValue
+    TicketDraftTagEnumValue,
+    TicketTagEnumOption
 } from './db';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { parseYMDDateString } from './utils';
@@ -68,7 +69,8 @@ async function clearDatabase() {
         db.ticketDraftTagDateValues,
         db.ticketDraftTagNumberValues,
         db.ticketDraftTagTextValues,
-        db.ticketDraftTagEnumValues
+        db.ticketDraftTagEnumValues,
+        db.ticketTagEnumOptions
     ], async () => {
         await Promise.all([
             db.profiles.clear(),
@@ -89,7 +91,8 @@ async function clearDatabase() {
             db.ticketDraftTagDateValues.clear(),
             db.ticketDraftTagNumberValues.clear(),
             db.ticketDraftTagTextValues.clear(),
-            db.ticketDraftTagEnumValues.clear()
+            db.ticketDraftTagEnumValues.clear(),
+            db.ticketTagEnumOptions.clear()
         ]);
     });
 }
@@ -117,7 +120,9 @@ export async function syncFromServer() {
             draftTagDateValuesTimestamp,
             draftTagNumberValuesTimestamp,
             draftTagTextValuesTimestamp,
-            draftTagEnumValuesTimestamp
+            draftTagEnumValuesTimestamp,
+            // Add enum options timestamp
+            tagEnumOptionsTimestamp
         ] = await Promise.all([
             getLatestTimestamp(db.profiles),
             getLatestTimestamp(db.organizations),
@@ -137,7 +142,9 @@ export async function syncFromServer() {
             getLatestTimestamp(db.ticketDraftTagDateValues),
             getLatestTimestamp(db.ticketDraftTagNumberValues),
             getLatestTimestamp(db.ticketDraftTagTextValues),
-            getLatestTimestamp(db.ticketDraftTagEnumValues)
+            getLatestTimestamp(db.ticketDraftTagEnumValues),
+            // Add enum options timestamp
+            getLatestTimestamp(db.ticketTagEnumOptions)
         ]);
 
         // Fetch updated data from Supabase
@@ -160,7 +167,9 @@ export async function syncFromServer() {
             { data: draftTagDateValues, error: draftTagDateValuesError },
             { data: draftTagNumberValues, error: draftTagNumberValuesError },
             { data: draftTagTextValues, error: draftTagTextValuesError },
-            { data: draftTagEnumValues, error: draftTagEnumValuesError }
+            { data: draftTagEnumValues, error: draftTagEnumValuesError },
+            // Add enum options query
+            { data: tagEnumOptions, error: tagEnumOptionsError }
         ] = await Promise.all([
             supabase
                 .from('profiles')
@@ -252,6 +261,11 @@ export async function syncFromServer() {
                 .from('ticket_draft_tag_enum_values')
                 .select('*')
                 .gte('updated_at', draftTagEnumValuesTimestamp)
+                .is('deleted_at', null),
+            supabase
+                .from('ticket_tag_enum_options')
+                .select('*')
+                .gte('updated_at', tagEnumOptionsTimestamp)
                 .is('deleted_at', null)
         ]);
 
@@ -275,6 +289,7 @@ export async function syncFromServer() {
         if (draftTagNumberValuesError) throw draftTagNumberValuesError;
         if (draftTagTextValuesError) throw draftTagTextValuesError;
         if (draftTagEnumValuesError) throw draftTagEnumValuesError;
+        if (tagEnumOptionsError) throw tagEnumOptionsError;
 
         // Update local DB
         await db.transaction('rw', [
@@ -296,7 +311,9 @@ export async function syncFromServer() {
             db.ticketDraftTagDateValues,
             db.ticketDraftTagNumberValues,
             db.ticketDraftTagTextValues,
-            db.ticketDraftTagEnumValues
+            db.ticketDraftTagEnumValues,
+            // Add enum options table
+            db.ticketTagEnumOptions
         ], async () => {
             // Use bulkPut to upsert records
             if (profiles?.length) {
@@ -357,6 +374,9 @@ export async function syncFromServer() {
             }
             if (draftTagEnumValues?.length) {
                 await db.ticketDraftTagEnumValues.bulkPut(draftTagEnumValues as TicketDraftTagEnumValue[]);
+            }
+            if (tagEnumOptions?.length) {
+                await db.ticketTagEnumOptions.bulkPut(tagEnumOptions);
             }
         });
 
@@ -815,6 +835,17 @@ function setupRealtimeSync() {
                 await db.ticketDraftTagEnumValues.delete(payload.old.id);
             } else {
                 await db.ticketDraftTagEnumValues.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ticket_tag_enum_options'
+        }, async (payload: RealtimePostgresChangesPayload<TicketTagEnumOption>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.ticketTagEnumOptions.delete(payload.old.id);
+            } else {
+                await db.ticketTagEnumOptions.put(payload.new);
             }
         })
         .subscribe();

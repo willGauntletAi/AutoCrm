@@ -22,13 +22,10 @@ async function validateMacroRow(row: TableRow<'macros'> | undefined | null): Pro
 
     const macro = await validateAndParseMacro(row.macro);
     if (macro) {
-        // If the macro data is invalid, return the row with deleted_at set
-        const now = new Date();
         return {
             ...row,
             macro: macro,
-            deleted_at: now,
-            updated_at: now
+            updated_at: row.updated_at
         };
     }
     return null;

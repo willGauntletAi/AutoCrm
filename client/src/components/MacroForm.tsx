@@ -9,7 +9,7 @@ import { db, TicketTagEnumOption } from '../lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { RichTextEditor } from './RichTextEditor';
-import { Plus, ChevronsUpDown } from 'lucide-react';
+import { Plus, ChevronsUpDown, X } from 'lucide-react';
 import { TagRequirementField } from './TagRequirementField';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
@@ -23,6 +23,8 @@ interface MacroFormProps {
     initialData?: Omit<MacroData, 'aiActions'> & { aiActions?: MacroData['aiActions'] };
     onSubmit: (data: MacroData) => Promise<void>;
     onCancel: () => void;
+    selectedNextMacros?: string[];
+    onNextMacrosChange?: (macros: string[]) => void;
 }
 
 interface MacroData {
@@ -60,7 +62,7 @@ interface MacroData {
     };
 }
 
-export default function MacroForm({ organizationId, initialData, onSubmit, onCancel }: MacroFormProps) {
+export default function MacroForm({ organizationId, initialData, onSubmit, onCancel, selectedNextMacros = [], onNextMacrosChange }: MacroFormProps) {
     const [activeTab, setActiveTab] = useState('basic');
     const [formData, setFormData] = useState<MacroData>(() => ({
         name: initialData?.name || '',
@@ -157,6 +159,20 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
         [],
         {} as Record<string, TicketTagEnumOption[]>
     );
+
+    // Fetch available macros for this organization
+    const availableMacros = useLiveQuery(
+        async () => {
+            return await db.macros
+                .where('organization_id')
+                .equals(organizationId)
+                .filter(macro => !macro.deleted_at)
+                .toArray();
+        },
+        [organizationId],
+        []
+    );
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -264,11 +280,12 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
     return (
         <form onSubmit={handleSubmit}>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-5">
+                    <TabsTrigger value="basic">Basic</TabsTrigger>
                     <TabsTrigger value="requirements">Requirements</TabsTrigger>
                     <TabsTrigger value="actions">Actions</TabsTrigger>
-                    <TabsTrigger value="ai-actions">AI Actions</TabsTrigger>
+                    <TabsTrigger value="ai">AI</TabsTrigger>
+                    <TabsTrigger value="nextMacros">Next Macros</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="basic" className="space-y-4">
@@ -696,7 +713,7 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="ai-actions" className="space-y-4">
+                <TabsContent value="ai" className="space-y-4">
                     <Card>
                         <CardHeader>
                             <CardTitle>AI Tag Actions</CardTitle>
@@ -833,14 +850,81 @@ export default function MacroForm({ organizationId, initialData, onSubmit, onCan
                         </CardContent>
                     </Card>
                 </TabsContent>
+
+                <TabsContent value="nextMacros">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle>Next Macros</CardTitle>
+                                {availableMacros.length > selectedNextMacros.filter(Boolean).length && (
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        className="flex items-center gap-2"
+                                        onClick={() => {
+                                            // Add an empty selection that will be populated by the dropdown
+                                            onNextMacrosChange?.([...selectedNextMacros, '']);
+                                        }}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add Next Macro
+                                    </Button>
+                                )}
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                {selectedNextMacros.map((macroId, index) => {
+                                    return (
+                                        <div key={index} className="flex items-center gap-2">
+                                            <div className="flex-1">
+                                                <Select
+                                                    value={macroId}
+                                                    onValueChange={(value) => {
+                                                        const newMacros = [...selectedNextMacros];
+                                                        newMacros[index] = value;
+                                                        onNextMacrosChange?.(newMacros.filter(Boolean));
+                                                    }}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select a macro" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {availableMacros
+                                                            .filter(m => !selectedNextMacros.includes(m.id) || m.id === macroId)
+                                                            .map((m) => (
+                                                                <SelectItem key={m.id} value={m.id}>
+                                                                    {m.macro.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => {
+                                                    const newMacros = selectedNextMacros.filter((_, i) => i !== index);
+                                                    onNextMacrosChange?.(newMacros.filter(Boolean));
+                                                }}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
             </Tabs>
 
-            <div className="mt-6 flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={handleCancel}>
+            <div className="mt-4 flex justify-end space-x-2">
+                <Button variant="outline" onClick={handleCancel}>
                     Cancel
                 </Button>
                 <Button type="submit">
-                    Save Changes
+                    Create Macro
                 </Button>
             </div>
         </form>

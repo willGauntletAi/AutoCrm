@@ -8,6 +8,7 @@ import { SyncInputSchema } from './handlers/sync/schema';
 import { sync } from './handlers/sync';
 import { acceptInvitation, acceptInvitationSchema } from './handlers/invitations';
 import { applyMacro } from './handlers/macros';
+import { getMacroStats } from './handlers/macros/stats';
 
 export const appRouter = router({
     hello: procedure
@@ -86,6 +87,19 @@ export const appRouter = router({
                 organizationRoles: ctx.user.organizations
             });
         }),
+
+    getMacroStats: authedProcedure
+        .input(z.object({
+            macroId: z.string().uuid(),
+            organizationId: z.string().uuid()
+        }))
+        .query(({ input, ctx }) => {
+            return getMacroStats({
+                macroId: input.macroId,
+                organizationId: input.organizationId,
+                organizationRoles: ctx.user.organizations
+            });
+        })
 });
 
 export type AppRouter = typeof appRouter; 

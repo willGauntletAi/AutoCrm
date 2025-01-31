@@ -7,10 +7,11 @@ import {
     DialogTitle,
     DialogTrigger,
 } from './ui/dialog';
-import { createMacro } from '../lib/mutations';
+import { createMacro, createMacroChain } from '../lib/mutations';
 import type { z } from 'zod';
 import { MacroSchema } from '../lib/db';
 import MacroForm from './MacroForm';
+import { useState } from 'react';
 
 interface CreateMacroDialogProps {
     organizationId: string;
@@ -20,6 +21,8 @@ interface CreateMacroDialogProps {
 }
 
 export default function CreateMacroDialog({ organizationId, trigger, open, onOpenChange }: CreateMacroDialogProps) {
+    const [selectedNextMacros, setSelectedNextMacros] = useState<string[]>([]);
+
     const handleSubmit = async (data: z.infer<typeof MacroSchema>['macro']) => {
         try {
             // Create macro using the mutations system
@@ -29,6 +32,16 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
                 organization_id: organizationId,
                 macro: data
             });
+
+            // Create macro chains for each selected next macro
+            await Promise.all(selectedNextMacros.map(async (childMacroId) => {
+                const chainId = uuidv4();
+                await createMacroChain({
+                    id: chainId,
+                    parent_macro_id: macroId,
+                    child_macro_id: childMacroId
+                });
+            }));
 
             // Close dialog
             onOpenChange?.(false);
@@ -58,6 +71,8 @@ export default function CreateMacroDialog({ organizationId, trigger, open, onOpe
                     organizationId={organizationId}
                     onSubmit={handleSubmit}
                     onCancel={() => onOpenChange?.(false)}
+                    selectedNextMacros={selectedNextMacros}
+                    onNextMacrosChange={setSelectedNextMacros}
                 />
             </DialogContent>
         </Dialog>

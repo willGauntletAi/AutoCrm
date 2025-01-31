@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { db } from '../lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -226,15 +226,18 @@ export default function AdminPage() {
                                         {macros.map((macro) => (
                                             <div key={macro.id} className="py-4 first:pt-0 last:pb-0">
                                                 <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h3 className="font-medium">{macro.macro.name}</h3>
+                                                    <Link
+                                                        to={`/${organization_id}/macros/${macro.id}`}
+                                                        className="flex-1 group hover:bg-gray-50 rounded-lg -mx-2 p-2 transition-colors"
+                                                    >
+                                                        <h3 className="font-medium group-hover:text-blue-600 transition-colors">{macro.macro.name}</h3>
                                                         {macro.macro.description && (
                                                             <p className="text-sm text-gray-500 mt-1">
                                                                 {macro.macro.description}
                                                             </p>
                                                         )}
-                                                    </div>
-                                                    <div className="flex gap-2">
+                                                    </Link>
+                                                    <div className="flex gap-2 ml-4">
                                                         <Button
                                                             variant="outline"
                                                             size="sm"

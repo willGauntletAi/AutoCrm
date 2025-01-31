@@ -156,7 +156,7 @@ export default function Draft() {
     // Local state for draft changes
     const [draftState, setDraftState] = useState<DraftState | null>(null)
     const [tagData, setTagData] = useState<TagData | null>(null)
-    const [hasChanges, setHasChanges] = useState(false)
+    const [_, setHasChanges] = useState(false)
     const [ticketComments, setTicketComments] = useState<TicketComment[]>([])
     const [draftComments, setDraftComments] = useState<DraftComment[]>([])
 
@@ -211,6 +211,7 @@ export default function Draft() {
                     .anyOf(enumTagKeys.map(key => key.id))
                     .filter(opt => !opt.deleted_at)
                     .toArray()
+                console.log(enumOptions)
 
                 const enumOptionsMap = new Map(enumOptions.map(opt => [opt.id, opt]))
                 const enumOptionsByTagKey = new Map(
@@ -249,13 +250,14 @@ export default function Draft() {
                 for (const tagKey of tagKeys) {
                     if (tagKey.tag_type === 'enum') {
                         const value = enumValues.find(v => v.tag_key_id === tagKey.id)
-                        if (value) {
-                            enumTagData.set(tagKey.id, {
-                                ...value,
-                                option: enumOptionsMap.get(value.enum_option_id),
-                                allOptions: enumOptionsByTagKey.get(tagKey.id) || []
-                            })
-                        }
+                        const options = enumOptionsByTagKey.get(tagKey.id) || []
+                        enumTagData.set(tagKey.id, {
+                            ...value,
+                            option: value ? enumOptionsMap.get(value.enum_option_id) : undefined,
+                            allOptions: options,
+                            tag_key_id: tagKey.id,
+                            ticket_draft_id: draft_id
+                        })
                     }
                 }
 
@@ -759,7 +761,7 @@ export default function Draft() {
                                     </Button>
                                     <Button
                                         onClick={handleSave}
-                                        disabled={isSaving || !hasChanges}
+                                        disabled={isSaving}
                                     >
                                         {isSaving ? 'Applying...' : 'Apply'}
                                     </Button>
@@ -914,6 +916,9 @@ export default function Draft() {
 
                                                     if (!value || !effectiveEnumData) return null
 
+                                                    // Find the selected option to display its value
+                                                    const selectedOption = effectiveEnumData.allOptions.find(opt => opt.id === value)
+
                                                     return (
                                                         <div key={tagKey.id} className="flex items-center gap-2">
                                                             <span className="text-sm text-gray-500 w-24 truncate" title={tagKey.name}>{tagKey.name}:</span>
@@ -928,7 +933,7 @@ export default function Draft() {
                                                                     }}
                                                                 >
                                                                     <SelectTrigger className="w-[200px]">
-                                                                        <SelectValue />
+                                                                        <SelectValue placeholder={selectedOption?.value || 'Select an option'} />
                                                                     </SelectTrigger>
                                                                     <SelectContent>
                                                                         {effectiveEnumData.allOptions.map(option => (
