@@ -329,6 +329,15 @@ export interface ExtensionsPgStatStatementsInfo {
   stats_reset: Timestamp | null;
 }
 
+export interface MacroChains {
+  child_macro_id: string;
+  created_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  parent_macro_id: string;
+  updated_at: Timestamp;
+}
+
 export interface Macros {
   created_at: Generated<Timestamp>;
   deleted_at: Timestamp | null;
@@ -786,6 +795,7 @@ export interface DB {
   "auth.users": AuthUsers;
   "extensions.pg_stat_statements": ExtensionsPgStatStatements;
   "extensions.pg_stat_statements_info": ExtensionsPgStatStatementsInfo;
+  macro_chains: MacroChains;
   macros: Macros;
   "net._http_response": NetHttpResponse;
   "net.http_request_queue": NetHttpRequestQueue;

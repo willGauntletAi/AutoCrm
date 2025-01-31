@@ -9,6 +9,7 @@ import { createEnumTagValue, deleteEnumTagValue, updateEnumTagValue } from './en
 import { createEnumTagOption, deleteEnumTagOption, updateEnumTagOption } from './enumTagOption';
 import { createMacro, deleteMacro, updateMacro } from './macros';
 import { updateTicketDraft } from './ticketDraft';
+import { createMacroChain, deleteMacroChain, updateMacroChain } from './macroChain';
 
 interface Context {
     user: AuthUser,
@@ -34,6 +35,7 @@ interface SyncResponse {
     ticket_tag_enum_values?: TableRow<'ticket_tag_enum_values'>[];
     macros?: TableRow<'macros'>[];
     ticket_drafts?: TableRow<'ticket_drafts'>[];
+    macro_chains?: TableRow<'macro_chains'>[];
 }
 
 // Profile operations
@@ -1214,6 +1216,31 @@ export async function sync({ data: operations, ctx }: SyncParams): Promise<SyncR
                 if (result) {
                     response.ticket_drafts = response.ticket_drafts || [];
                     response.ticket_drafts.push(result);
+                }
+                break;
+            }
+
+            case 'create_macro_chain': {
+                const result = await createMacroChain(operation, memberships);
+                if (result) {
+                    response.macro_chains = response.macro_chains || [];
+                    response.macro_chains.push(result);
+                }
+                break;
+            }
+            case 'update_macro_chain': {
+                const result = await updateMacroChain(operation, memberships);
+                if (result) {
+                    response.macro_chains = response.macro_chains || [];
+                    response.macro_chains.push(result);
+                }
+                break;
+            }
+            case 'delete_macro_chain': {
+                const result = await deleteMacroChain(operation, memberships);
+                if (result) {
+                    response.macro_chains = response.macro_chains || [];
+                    response.macro_chains.push(result);
                 }
                 break;
             }

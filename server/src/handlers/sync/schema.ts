@@ -287,7 +287,31 @@ export const SyncOperationSchema = z.discriminatedUnion('operation', [
     z.object({
         operation: z.literal('delete_ticket_draft'),
         data: z.object({ id: z.string().uuid() })
-    })
+    }),
+
+    // Macro Chain operations
+    z.object({
+        operation: z.literal('create_macro_chain'),
+        data: z.object({
+            id: z.string().uuid(),
+            parent_macro_id: z.string().uuid(),
+            child_macro_id: z.string().uuid(),
+        }),
+    }),
+    z.object({
+        operation: z.literal('update_macro_chain'),
+        data: z.object({
+            id: z.string().uuid(),
+            parent_macro_id: z.string().uuid(),
+            child_macro_id: z.string().uuid(),
+        }),
+    }),
+    z.object({
+        operation: z.literal('delete_macro_chain'),
+        data: z.object({
+            id: z.string().uuid(),
+        }),
+    }),
 ]);
 
 export const SyncInputSchema = z.array(SyncOperationSchema);
@@ -308,6 +332,7 @@ export type TableName = keyof Pick<DB,
     'ticket_tag_enum_options' |
     'ticket_tag_enum_values' |
     'macros' |
-    'ticket_drafts'
+    'ticket_drafts' |
+    'macro_chains'
 >;
 

@@ -9,6 +9,48 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      macro_chains: {
+        Row: {
+          child_macro_id: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          parent_macro_id: string
+          updated_at: string
+        }
+        Insert: {
+          child_macro_id: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          parent_macro_id: string
+          updated_at: string
+        }
+        Update: {
+          child_macro_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          parent_macro_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "macro_chains_child_macro_id_fkey"
+            columns: ["child_macro_id"]
+            isOneToOne: false
+            referencedRelation: "macros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "macro_chains_parent_macro_id_fkey"
+            columns: ["parent_macro_id"]
+            isOneToOne: false
+            referencedRelation: "macros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       macros: {
         Row: {
           created_at: string
