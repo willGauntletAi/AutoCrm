@@ -24,7 +24,7 @@ export default function Drafts() {
             let draftsList = await db.ticketDrafts
                 .where('organization_id')
                 .equals(organization_id!)
-                .filter(draft => !draft.deleted_at)
+                .filter(draft => !draft.deleted_at && draft.draft_status === 'unreviewed')
                 .toArray()
 
             // Apply tag filters

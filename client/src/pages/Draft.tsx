@@ -27,11 +27,12 @@ import {
     createTicketTagDateValue,
     createTicketTagNumberValue,
     createTicketTagTextValue,
-    createTicketTagEnumValue
+    createTicketTagEnumValue,
+    updateTicketDraftStatus
 } from '../lib/mutations'
 import { useAuth } from '@/lib/auth'
 import type { TicketTagKey } from '../lib/db'
-import { formatDateTime, parseYMDDateString } from '@/lib/utils'
+import { formatDateTime, parseYMDDateString, formatDateTagValue } from '@/lib/utils'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { Plus } from 'lucide-react'
 import { AddTagValue } from '../components/AddTagValue'
@@ -358,8 +359,66 @@ export default function Draft() {
             // Wait for all tag updates to complete
             await Promise.all(tagPromises)
 
-            // Delete the draft since changes are now saved
-            await db.ticketDrafts.update(draftState.id, { deleted_at: new Date().toISOString() })
+            // Get the original draft state
+            const originalDraft = await db.ticketDrafts.get(draftState.id)
+            if (!originalDraft) {
+                throw new Error('Original draft not found')
+            }
+
+            // Check if basic fields match the original draft
+            const basicFieldsMatch =
+                originalDraft.title === draftState.title &&
+                originalDraft.description === draftState.description &&
+                originalDraft.priority === draftState.priority &&
+                originalDraft.status === draftState.status
+
+            // Check if tag values match the original draft
+            const dateValuesMatch = await Promise.all(
+                Array.from(draftState.tags.date.entries()).map(async ([tagKeyId, value]) => {
+                    const tagValue = await db.ticketDraftTagDateValues
+                        .where({ ticket_draft_id: draftState.id, tag_key_id: tagKeyId })
+                        .first()
+                    return tagValue && formatDateTagValue(tagValue.value) === value
+                })
+            )
+
+            const numberValuesMatch = await Promise.all(
+                Array.from(draftState.tags.number.entries()).map(async ([tagKeyId, value]) => {
+                    const tagValue = await db.ticketDraftTagNumberValues
+                        .where({ ticket_draft_id: draftState.id, tag_key_id: tagKeyId })
+                        .first()
+                    return tagValue && tagValue.value.toString() === value
+                })
+            )
+
+            const textValuesMatch = await Promise.all(
+                Array.from(draftState.tags.text.entries()).map(async ([tagKeyId, value]) => {
+                    const tagValue = await db.ticketDraftTagTextValues
+                        .where({ ticket_draft_id: draftState.id, tag_key_id: tagKeyId })
+                        .first()
+                    return tagValue && tagValue.value === value
+                })
+            )
+
+            const enumValuesMatch = await Promise.all(
+                Array.from(draftState.tags.enum.entries()).map(async ([tagKeyId, value]) => {
+                    const tagValue = await db.ticketDraftTagEnumValues
+                        .where({ ticket_draft_id: draftState.id, tag_key_id: tagKeyId })
+                        .first()
+                    return tagValue && tagValue.enum_option_id === value
+                })
+            )
+
+            const allTagValuesMatch = [
+                ...dateValuesMatch,
+                ...numberValuesMatch,
+                ...textValuesMatch,
+                ...enumValuesMatch
+            ].every(Boolean)
+
+            // Update draft status based on whether all changes match the original draft
+            const newStatus = basicFieldsMatch && allTagValuesMatch ? 'accepted' : 'partially_accepted'
+            await updateTicketDraftStatus(draftState.id, newStatus)
 
             // Navigate back to drafts page
             navigate(`/${organization_id}/drafts`)
@@ -377,8 +436,8 @@ export default function Draft() {
             setIsSaving(true)
             setError(null)
 
-            // Delete the draft
-            await db.ticketDrafts.update(draftState.id, { deleted_at: new Date().toISOString() })
+            // Mark the draft as rejected
+            await updateTicketDraftStatus(draftState.id, 'rejected')
 
             // Navigate back to drafts list
             navigate(`/${organization_id}/drafts`)

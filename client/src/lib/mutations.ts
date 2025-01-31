@@ -18,6 +18,7 @@ import {
     type TicketTagEnumValue,
     type Mutation,
     type Macro,
+    type TicketDraft,
 } from './db';
 import { formatDateTagValue } from './utils';
 
@@ -920,4 +921,36 @@ export async function applyMacroToTickets(macroId: string, ticketIds: string[], 
         ticketIds,
         organizationId
     });
+}
+
+//repeating types too much probably, but don't care at this point
+export async function updateTicketDraft(id: string, data: Partial<Omit<TicketDraft, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.ticketDrafts], async () => {
+        const existing = await db.ticketDrafts.get(id);
+        if (!existing) {
+            throw new Error(`Ticket Draft ${id} not found`);
+        }
+        if (!['unreviewed', 'partially_accepted', 'accepted', 'rejected'].includes(data.draft_status || '')) {
+            throw new Error(`Invalid draft status: ${data.draft_status}`);
+        }
+        const draftData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_ticket_draft',
+            data: {
+                ...draftData,
+                draft_status: draftData.draft_status as 'unreviewed' | 'partially_accepted' | 'accepted' | 'rejected'
+            }
+        });
+        await db.ticketDrafts.update(id, draftData);
+    });
+    await syncToServer();
+}
+
+export async function updateTicketDraftStatus(id: string, status: 'unreviewed' | 'partially_accepted' | 'accepted' | 'rejected'): Promise<void> {
+    await updateTicketDraft(id, { draft_status: status });
 } 

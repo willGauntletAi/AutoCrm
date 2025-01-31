@@ -92,6 +92,21 @@ export const TicketTagEnumValueSchema = z.object({
     enum_option_id: z.string().uuid(),
 });
 
+export const TicketDraftSchema = z.object({
+    id: z.string().uuid(),
+    title: z.string(),
+    description: z.string().nullable(),
+    status: z.string(),
+    priority: z.string(),
+    draft_status: z.enum(['unreviewed', 'partially_accepted', 'accepted', 'rejected']),
+    created_by: z.string().uuid(),
+    assigned_to: z.string().uuid().nullable(),
+    organization_id: z.string().uuid(),
+    original_ticket_id: z.string().uuid().nullable(),
+    parent_draft_id: z.string().uuid().nullable(),
+    latency: z.number(),
+});
+
 // Define the sync operation schema using a discriminated union
 export const SyncOperationSchema = z.discriminatedUnion('operation', [
     // Profile operations
@@ -258,6 +273,20 @@ export const SyncOperationSchema = z.discriminatedUnion('operation', [
     z.object({
         operation: z.literal('delete_macro'),
         data: z.object({ id: z.string().uuid() })
+    }),
+
+    // Ticket Draft operations
+    z.object({
+        operation: z.literal('create_ticket_draft'),
+        data: TicketDraftSchema
+    }),
+    z.object({
+        operation: z.literal('update_ticket_draft'),
+        data: TicketDraftSchema
+    }),
+    z.object({
+        operation: z.literal('delete_ticket_draft'),
+        data: z.object({ id: z.string().uuid() })
     })
 ]);
 
@@ -278,6 +307,7 @@ export type TableName = keyof Pick<DB,
     'ticket_tag_text_values' |
     'ticket_tag_enum_options' |
     'ticket_tag_enum_values' |
-    'macros'
+    'macros' |
+    'ticket_drafts'
 >;
 
