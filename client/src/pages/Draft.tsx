@@ -28,14 +28,33 @@ import {
     createTicketTagNumberValue,
     createTicketTagTextValue,
     createTicketTagEnumValue,
-    updateTicketDraftStatus
+    updateTicketDraftStatus,
+    createTicketComment
 } from '../lib/mutations'
 import { useAuth } from '@/lib/auth'
 import type { TicketTagKey } from '../lib/db'
 import { formatDateTime, parseYMDDateString, formatDateTagValue } from '@/lib/utils'
 import { RichTextEditor } from '../components/RichTextEditor'
-import { Plus } from 'lucide-react'
+import { Plus, Edit2, Trash2 } from 'lucide-react'
 import { AddTagValue } from '../components/AddTagValue'
+
+// Comment types
+type Comment = {
+    id: string;
+    comment: string;
+    user_id: string;
+    created_at: string;
+    updated_at: string | null;
+    deleted_at: string | null;
+}
+
+type TicketComment = Comment & {
+    ticket_id: string;
+}
+
+type DraftComment = Comment & {
+    ticket_draft_id: string;
+}
 
 const TICKET_STATUS_OPTIONS = ['open', 'in_progress', 'closed'] as const
 const TICKET_PRIORITY_OPTIONS = ['low', 'medium', 'high'] as const
@@ -129,6 +148,8 @@ export default function Draft() {
     const [isTagsOpen, setIsTagsOpen] = useState(false)
     const [isAddingTagValue, setIsAddingTagValue] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
+    const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+    const [editingCommentText, setEditingCommentText] = useState("")
     const { user } = useAuth()
     const navigate = useNavigate()
 
@@ -136,6 +157,8 @@ export default function Draft() {
     const [draftState, setDraftState] = useState<DraftState | null>(null)
     const [tagData, setTagData] = useState<TagData | null>(null)
     const [hasChanges, setHasChanges] = useState(false)
+    const [ticketComments, setTicketComments] = useState<TicketComment[]>([])
+    const [draftComments, setDraftComments] = useState<DraftComment[]>([])
 
     // Load initial data
     useEffect(() => {
@@ -151,6 +174,29 @@ export default function Draft() {
                     .first()
 
                 if (!loadedDraft) return
+
+                // Load comments for both the original ticket and the draft
+                const [loadedTicketComments, loadedDraftComments] = await Promise.all([
+                    db.ticketComments
+                        .where('ticket_id')
+                        .equals(loadedDraft.original_ticket_id || '')
+                        .filter(comment => !comment.deleted_at)
+                        .toArray(),
+                    db.ticketDraftComments
+                        .where('ticket_draft_id')
+                        .equals(draft_id)
+                        .filter(comment => !comment.deleted_at)
+                        .toArray()
+                ])
+
+                setTicketComments(loadedTicketComments.map(comment => ({
+                    ...comment,
+                    created_at: comment.created_at || new Date().toISOString(),
+                })))
+                setDraftComments(loadedDraftComments.map(comment => ({
+                    ...comment,
+                    created_at: comment.created_at || new Date().toISOString(),
+                })))
 
                 // Load tag keys and enum options
                 const tagKeys = await db.ticketTagKeys
@@ -356,8 +402,18 @@ export default function Draft() {
                 }
             }
 
-            // Wait for all tag updates to complete
-            await Promise.all(tagPromises)
+            // Create comments on the original ticket
+            const commentPromises = draftComments.map(comment =>
+                createTicketComment({
+                    id: crypto.randomUUID(),
+                    ticket_id: draftState.original_ticket_id,
+                    user_id: comment.user_id,
+                    comment: comment.comment
+                })
+            )
+
+            // Wait for all updates to complete
+            await Promise.all([...tagPromises, ...commentPromises])
 
             // Get the original draft state
             const originalDraft = await db.ticketDrafts.get(draftState.id)
@@ -495,6 +551,61 @@ export default function Draft() {
 
         setDraftState(newDraftState)
         setHasChanges(true)
+    }
+
+    const handleAddComment = async (comment: string) => {
+        if (!draftState || !user) return
+
+        try {
+            const newComment: DraftComment = {
+                id: crypto.randomUUID(),
+                ticket_draft_id: draftState.id,
+                user_id: user.id,
+                comment,
+                created_at: new Date().toISOString(),
+                updated_at: null,
+                deleted_at: null
+            }
+
+            // Only update local state, don't save to database
+            setDraftComments(prev => [newComment, ...prev])
+            setHasChanges(true)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to add comment')
+        }
+    }
+
+    const handleEditComment = async (commentId: string) => {
+        if (!editingCommentText.trim()) return
+
+        try {
+            const comment = draftComments.find(c => c.id === commentId)
+            if (!comment) return
+
+            const updatedComment = {
+                ...comment,
+                comment: editingCommentText,
+                updated_at: new Date().toISOString()
+            }
+
+            // Only update local state, don't save to database
+            setDraftComments(prev => prev.map(c => c.id === commentId ? updatedComment : c))
+            setEditingCommentId(null)
+            setEditingCommentText("")
+            setHasChanges(true)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to edit comment')
+        }
+    }
+
+    const handleDeleteComment = async (commentId: string) => {
+        try {
+            // Only update local state, don't save to database
+            setDraftComments(prev => prev.filter(c => c.id !== commentId))
+            setHasChanges(true)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to delete comment')
+        }
     }
 
     if (!draftState || !tagData) {
@@ -860,6 +971,116 @@ export default function Draft() {
                             </div>
                         </CardContent>
                     </Card>
+                </div>
+                <Card>
+                    <CardHeader>
+                        <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                                <h3 className="text-lg font-medium mb-4">Comments</h3>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="mb-6">
+                            <RichTextEditor
+                                content=""
+                                onChange={(value) => handleAddComment(value)}
+                                className="min-h-[100px]"
+                            />
+                            <p className="text-sm text-gray-500 mt-1">Press Enter to add a comment</p>
+                        </div>
+
+                        <div className="space-y-4 mb-8">
+                            {draftComments.map(comment => (
+                                <Card key={comment.id} className="p-4">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            {editingCommentId === comment.id ? (
+                                                <div className="space-y-2">
+                                                    <RichTextEditor
+                                                        content={editingCommentText}
+                                                        onChange={setEditingCommentText}
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => handleEditComment(comment.id)}
+                                                        >
+                                                            Save
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                setEditingCommentId(null)
+                                                                setEditingCommentText("")
+                                                            }}
+                                                        >
+                                                            Cancel
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    className="prose prose-sm max-w-none"
+                                                    dangerouslySetInnerHTML={{ __html: comment.comment }}
+                                                />
+                                            )}
+                                            <div className="text-sm text-gray-500 mt-2">
+                                                {formatDateTime(comment.created_at)}
+                                                {comment.updated_at && ` (edited ${formatDateTime(comment.updated_at)})`}
+                                            </div>
+                                        </div>
+                                        {editingCommentId !== comment.id && (
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        setEditingCommentId(comment.id)
+                                                        setEditingCommentText(comment.comment)
+                                                    }}
+                                                >
+                                                    <Edit2 className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => handleDeleteComment(comment.id)}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+
+                        {ticketComments.length > 0 && (
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-medium text-gray-500">Original Ticket Comments</h4>
+                                {ticketComments.map(comment => (
+                                    <Card key={comment.id} className="p-4 bg-gray-50">
+                                        <div
+                                            className="prose prose-sm max-w-none"
+                                            dangerouslySetInnerHTML={{ __html: comment.comment }}
+                                        />
+                                        <div className="text-sm text-gray-500 mt-2">
+                                            {formatDateTime(comment.created_at)}
+                                            {comment.updated_at && ` (edited ${formatDateTime(comment.updated_at)})`}
+                                        </div>
+                                    </Card>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+                <div className="text-sm text-gray-500 mt-8">
+                    <p>Created {formatDateTime(draftState?.created_at || '')}</p>
+                    {draftState?.updated_at && (
+                        <p>Updated {formatDateTime(draftState.updated_at)}</p>
+                    )}
                 </div>
             </div>
         </div>
