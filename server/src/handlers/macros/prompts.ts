@@ -107,11 +107,13 @@ ${formatExistingTags(existingTags)}`;
 export function createNextMacroPrompt({
     ticket,
     draft,
-    childMacros
+    childMacros,
+    existingTags
 }: {
     ticket: Selectable<DB['tickets']>;
     draft: { id: string; content?: string | null };
     childMacros: Array<{ id: string; name: string; description: string | null }>;
+    existingTags: TagValuesByTicket;
 }) {
     return `Given a support ticket and its current draft state, select the most appropriate next macro to apply from the available options.
 
@@ -120,6 +122,9 @@ Title: ${ticket.title}
 Description: ${ticket.description || 'No description'}
 Status: ${ticket.status}
 Priority: ${ticket.priority}
+
+Existing Tags:
+${formatExistingTags(existingTags)}
 
 Current Draft:
 ${draft.content || '(No changes yet)'}

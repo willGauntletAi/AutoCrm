@@ -620,12 +620,6 @@ async function createDraftForTicket(
     return draft;
 }
 
-interface ChildMacro {
-    id: string;
-    name: string;
-    description: string | null;
-}
-
 async function applyRegularActionsToTicketDraft(
     draft: { id: string },
     actions: MacroActions,

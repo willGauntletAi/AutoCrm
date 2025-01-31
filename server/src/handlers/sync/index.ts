@@ -10,6 +10,7 @@ import { createEnumTagOption, deleteEnumTagOption, updateEnumTagOption } from '.
 import { createMacro, deleteMacro, updateMacro } from './macros';
 import { updateTicketDraft } from './ticketDraft';
 import { createMacroChain, deleteMacroChain, updateMacroChain } from './macroChain';
+import { MacroSchema } from '../../types/macros';
 
 interface Context {
     user: AuthUser,
@@ -19,6 +20,10 @@ interface SyncParams {
     data: z.infer<typeof SyncInputSchema>;
     ctx: Context;
 }
+
+export type MacroRow = Omit<TableRow<'macros'>, 'macro'> & {
+    macro: z.infer<typeof MacroSchema.shape.macro>;
+};
 
 interface SyncResponse {
     profiles?: TableRow<'profiles'>[];
@@ -33,7 +38,7 @@ interface SyncResponse {
     ticket_tag_text_values?: TableRow<'ticket_tag_text_values'>[];
     ticket_tag_enum_options?: TableRow<'ticket_tag_enum_options'>[];
     ticket_tag_enum_values?: TableRow<'ticket_tag_enum_values'>[];
-    macros?: TableRow<'macros'>[];
+    macros?: MacroRow[];
     ticket_drafts?: TableRow<'ticket_drafts'>[];
     macro_chains?: TableRow<'macro_chains'>[];
 }

@@ -379,7 +379,7 @@ export async function generateAIStatusAndPriority({ ticket, suggestStatus, sugge
 export async function selectNextMacro({ ticket, draft, childMacros, existingTags }: SelectNextMacroParams): Promise<string | null> {
     if (childMacros.length === 0) return null;
 
-    const prompt = createNextMacroPrompt({ ticket, draft, childMacros });
+    const prompt = createNextMacroPrompt({ ticket, draft, childMacros, existingTags });
 
     // Define the function schema
     const functionSchema = {

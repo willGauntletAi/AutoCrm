@@ -19,6 +19,7 @@ import {
     type Mutation,
     type Macro,
     type TicketDraft,
+    type MacroChain,
 } from './db';
 import { formatDateTagValue } from './utils';
 
@@ -441,6 +442,17 @@ export async function applyMutation(operation: Operation): Promise<void> {
                 deleted_at: new Date().toISOString(),
             });
             break;
+
+        case 'create_macro_chain':
+        case 'update_macro_chain':
+            await db.macroChains.put({ ...operation.data, created_at: null, updated_at: null, deleted_at: null });
+            break;
+
+        case 'delete_macro_chain':
+            await db.macroChains.update(operation.data.id, {
+                deleted_at: new Date().toISOString(),
+            });
+            break;
     }
 }
 
@@ -456,7 +468,6 @@ export async function syncToServer(): Promise<void> {
             return;
         }
 
-        // Fire and forget - don't await the sync
         void client.sync.mutate(unsyncedMutations.map((mutation) => mutation.operation))
             .then(async (result) => {
                 await db.transaction('rw', [
@@ -472,6 +483,8 @@ export async function syncToServer(): Promise<void> {
                     db.ticketTagTextValues,
                     db.ticketTagEnumOptions,
                     db.ticketTagEnumValues,
+                    db.macros,
+                    db.macroChains,
                     db.mutations
                 ], async () => {
                     if (result.profiles?.length) {
@@ -495,7 +508,7 @@ export async function syncToServer(): Promise<void> {
                     if (result.ticket_tag_keys?.length) {
                         await db.ticketTagKeys.bulkPut(result.ticket_tag_keys.map(key => ({
                             ...key,
-                            tag_type: key.tag_type as 'date' | 'number' | 'text'
+                            tag_type: key.tag_type as 'date' | 'number' | 'text' | 'enum'
                         })));
                     }
                     if (result.ticket_tag_date_values?.length) {
@@ -517,17 +530,21 @@ export async function syncToServer(): Promise<void> {
                     if (result.ticket_tag_enum_values?.length) {
                         await db.ticketTagEnumValues.bulkPut(result.ticket_tag_enum_values);
                     }
+                    if (result.macros?.length) {
+                        await db.macros.bulkPut(result.macros);
+                    }
+                    if (result.macro_chains?.length) {
+                        await db.macroChains.bulkPut(result.macro_chains);
+                    }
 
                     await markMutationsSynced(unsyncedMutations.map(mutation => mutation.id!));
                 });
             })
             .catch(error => {
                 console.error('Error syncing to server:', error);
-                // Don't throw the error since this is fire and forget
             });
     } catch (error) {
         console.error('Error preparing sync to server:', error);
-        // Don't throw the error since this is fire and forget
     }
 }
 
@@ -958,4 +975,58 @@ export async function updateTicketDraft(id: string, data: Partial<Omit<TicketDra
 
 export async function updateTicketDraftStatus(id: string, status: 'unreviewed' | 'partially_accepted' | 'accepted' | 'rejected'): Promise<void> {
     await updateTicketDraft(id, { draft_status: status });
+}
+
+export async function createMacroChain(data: Omit<MacroChain, 'created_at' | 'updated_at' | 'deleted_at'>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const chainData = {
+        ...data,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+    };
+    await db.transaction('rw', [db.mutations, db.macroChains], async () => {
+        await queueMutation({
+            operation: 'create_macro_chain',
+            data: chainData,
+        });
+        await db.macroChains.put(chainData);
+    });
+    await syncToServer();
+}
+
+export async function updateMacroChain(id: string, data: Partial<Omit<MacroChain, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.macroChains], async () => {
+        const existing = await db.macroChains.get(id);
+        if (!existing) {
+            throw new Error(`Macro Chain ${id} not found`);
+        }
+        const chainData = {
+            ...existing,
+            ...data,
+            updated_at: timestamp,
+        };
+        await queueMutation({
+            operation: 'update_macro_chain',
+            data: chainData,
+        });
+        await db.macroChains.update(id, chainData);
+    });
+    await syncToServer();
+}
+
+export async function deleteMacroChain(id: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    await db.transaction('rw', [db.mutations, db.macroChains], async () => {
+        await queueMutation({
+            operation: 'delete_macro_chain',
+            data: { id },
+        });
+        await db.macroChains.update(id, {
+            deleted_at: timestamp,
+            updated_at: timestamp
+        });
+    });
+    await syncToServer();
 } 

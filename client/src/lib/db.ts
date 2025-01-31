@@ -143,6 +143,13 @@ export const TicketDraftTagEnumValueSchema = z.object({
     deleted_at: z.string().nullable(),
 });
 
+// Define the macro chain schema
+export const MacroChainSchema = z.object({
+    id: z.string().uuid(),
+    parent_macro_id: z.string().uuid(),
+    child_macro_id: z.string().uuid(),
+}).extend(TimestampFieldsSchema.shape);
+
 // Generate types from schemas
 export type Profile = z.infer<typeof ProfileSchema>;
 export type Organization = z.infer<typeof OrganizationSchema>;
@@ -170,6 +177,9 @@ export type TicketDraftTagNumberValue = z.infer<typeof TicketDraftTagNumberValue
 export type TicketDraftTagTextValue = z.infer<typeof TicketDraftTagTextValueSchema>;
 export type TicketDraftTagEnumValue = z.infer<typeof TicketDraftTagEnumValueSchema>;
 
+// Add new type
+export type MacroChain = z.infer<typeof MacroChainSchema>;
+
 // Define database class
 export class AutoCRMDatabase extends Dexie {
     profiles!: Table<Profile>;
@@ -187,6 +197,7 @@ export class AutoCRMDatabase extends Dexie {
     ticketTagEnumOptions!: Table<TicketTagEnumOption>;
     ticketTagEnumValues!: Table<TicketTagEnumValue>;
     macros!: Table<Macro>;
+    macroChains!: Table<MacroChain>;
 
     // Add draft-related tables
     ticketDrafts!: Table<TicketDraft>;
@@ -214,6 +225,7 @@ export class AutoCRMDatabase extends Dexie {
             ticketTagEnumOptions: '&id, tag_key_id, value, created_at, updated_at',
             ticketTagEnumValues: '&id, ticket_id, tag_key_id, enum_option_id, created_at, updated_at',
             macros: '&id, organization_id, created_at, updated_at',
+            macroChains: '&id, parent_macro_id, child_macro_id, created_at, updated_at',
 
             // Add indexes for draft-related tables
             ticketDrafts: '&id, title, status, priority, draft_status, created_by, assigned_to, organization_id, original_ticket_id, parent_draft_id, latency, created_at, updated_at',
@@ -371,6 +383,13 @@ export class AutoCRMDatabase extends Dexie {
         });
         this.ticketDraftTagEnumValues.hook('updating', (mods) => {
             TicketDraftTagEnumValueSchema.partial().parse(mods);
+        });
+
+        this.macroChains.hook('creating', (_, obj) => {
+            MacroChainSchema.parse(obj);
+        });
+        this.macroChains.hook('updating', (mods) => {
+            MacroChainSchema.partial().parse(mods);
         });
     }
 }

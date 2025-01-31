@@ -2,7 +2,7 @@ import Dexie from 'dexie';
 import { db } from './db';
 import { supabase } from './supabase';
 import type {
-    Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation, TicketTagKey, TicketTagNumberValueWithNumber, TicketTagTextValue, TicketTagDateValueWithDate, TicketTagDateValue, Macro,
+    Profile, Organization, ProfileOrganizationMember, Ticket, TicketComment, OrganizationInvitation, TicketTagKey, TicketTagNumberValueWithNumber, TicketTagTextValue, TicketTagDateValueWithDate, TicketTagDateValue, Macro, MacroChain,
     // Add draft types
     TicketDraft,
     TicketDraftComment,
@@ -61,6 +61,7 @@ async function clearDatabase() {
         db.ticketTagNumberValues,
         db.ticketTagTextValues,
         db.macros,
+        db.macroChains,
         // Add draft tables
         db.ticketDrafts,
         db.ticketDraftComments,
@@ -81,6 +82,7 @@ async function clearDatabase() {
             db.ticketTagNumberValues.clear(),
             db.ticketTagTextValues.clear(),
             db.macros.clear(),
+            db.macroChains.clear(),
             // Add draft tables
             db.ticketDrafts.clear(),
             db.ticketDraftComments.clear(),
@@ -108,6 +110,7 @@ export async function syncFromServer() {
             tagNumberValuesTimestamp,
             tagTextValuesTimestamp,
             macrosTimestamp,
+            macroChainsTimestamp,
             // Add draft timestamps
             draftsTimestamp,
             draftCommentsTimestamp,
@@ -127,6 +130,7 @@ export async function syncFromServer() {
             getLatestTimestamp(db.ticketTagNumberValues),
             getLatestTimestamp(db.ticketTagTextValues),
             getLatestTimestamp(db.macros),
+            getLatestTimestamp(db.macroChains),
             // Add draft timestamps
             getLatestTimestamp(db.ticketDrafts),
             getLatestTimestamp(db.ticketDraftComments),
@@ -149,6 +153,7 @@ export async function syncFromServer() {
             { data: tagNumberValues, error: tagNumberValuesError },
             { data: tagTextValues, error: tagTextValuesError },
             { data: macros, error: macrosError },
+            { data: macroChains, error: macroChainsError },
             // Add draft queries
             { data: drafts, error: draftsError },
             { data: draftComments, error: draftCommentsError },
@@ -212,6 +217,11 @@ export async function syncFromServer() {
                 .select('*')
                 .gte('updated_at', macrosTimestamp)
                 .is('deleted_at', null),
+            supabase
+                .from('macro_chains')
+                .select('*')
+                .gte('updated_at', macroChainsTimestamp)
+                .is('deleted_at', null),
             // Add draft queries
             supabase
                 .from('ticket_drafts')
@@ -257,6 +267,7 @@ export async function syncFromServer() {
         if (tagNumberValuesError) throw tagNumberValuesError;
         if (tagTextValuesError) throw tagTextValuesError;
         if (macrosError) throw macrosError;
+        if (macroChainsError) throw macroChainsError;
         // Add draft error checks
         if (draftsError) throw draftsError;
         if (draftCommentsError) throw draftCommentsError;
@@ -278,6 +289,7 @@ export async function syncFromServer() {
             db.ticketTagNumberValues,
             db.ticketTagTextValues,
             db.macros,
+            db.macroChains,
             // Add draft tables
             db.ticketDrafts,
             db.ticketDraftComments,
@@ -319,6 +331,9 @@ export async function syncFromServer() {
             }
             if (macros?.length) {
                 await db.macros.bulkPut(macros as Macro[]);
+            }
+            if (macroChains?.length) {
+                await db.macroChains.bulkPut(macroChains as MacroChain[]);
             }
             // Add draft updates
             if (drafts?.length) {
@@ -717,6 +732,17 @@ function setupRealtimeSync() {
                 await db.macros.delete(payload.old.id);
             } else {
                 await db.macros.put(payload.new);
+            }
+        })
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'macro_chains'
+        }, async (payload: RealtimePostgresChangesPayload<MacroChain>) => {
+            if (payload.eventType === 'DELETE') {
+                await db.macroChains.delete(payload.old.id);
+            } else {
+                await db.macroChains.put(payload.new);
             }
         })
         // Add draft subscriptions

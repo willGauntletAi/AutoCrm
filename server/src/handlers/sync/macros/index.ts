@@ -1,6 +1,38 @@
 import { db } from '../../../db';
 import { SyncInputSchema, TableRow } from '../schema';
 import { z } from 'zod';
+import { MacroSchema } from '../../../types/macros';
+import { MacroRow } from '..';
+
+// Helper function to validate and parse macro data
+async function validateAndParseMacro(macro: unknown) {
+    try {
+        // Parse the macro data against the schema
+        const result = MacroSchema.shape.macro.parse(macro);
+        return result;
+    } catch (error) {
+        console.error('Macro validation failed:', error);
+        return null;
+    }
+}
+
+// Helper function to validate and return macro data
+async function validateMacroRow(row: TableRow<'macros'> | undefined | null): Promise<MacroRow | null> {
+    if (!row) return null;
+
+    const macro = await validateAndParseMacro(row.macro);
+    if (macro) {
+        // If the macro data is invalid, return the row with deleted_at set
+        const now = new Date();
+        return {
+            ...row,
+            macro: macro,
+            deleted_at: now,
+            updated_at: now
+        };
+    }
+    return null;
+}
 
 // Helper function to validate tag keys exist and match their types
 async function validateTagKeys(organizationId: string, macro: any): Promise<boolean> {
@@ -80,29 +112,37 @@ async function validateTagKeys(organizationId: string, macro: any): Promise<bool
     return true;
 }
 
-export async function updateMacro(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'update_macro' }, memberships: Record<string, string>): Promise<TableRow<'macros'> | null> {
+export async function updateMacro(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'update_macro' }, memberships: Record<string, string>): Promise<MacroRow | null> {
     const existingMacro = await db.selectFrom('macros')
         .selectAll()
         .where('id', '=', data.data.id)
         .executeTakeFirst();
 
-    if (!existingMacro) {
+    // Validate existing macro data
+    const validatedExisting = await validateMacroRow(existingMacro);
+    if (!validatedExisting) {
         return null;
     }
 
     // Check if user has access to the organization
-    if (!memberships[existingMacro.organization_id]) {
+    if (!memberships[validatedExisting.organization_id]) {
         return null;
     }
 
-    if (existingMacro.deleted_at) {
-        return existingMacro;
+    if (validatedExisting.deleted_at) {
+        return validatedExisting;
+    }
+
+    // Validate new macro data
+    const isValidMacro = await validateAndParseMacro(data.data.macro);
+    if (!isValidMacro) {
+        return validatedExisting; // Return unchanged if validation fails
     }
 
     // Validate tag keys before updating
-    const isValid = await validateTagKeys(existingMacro.organization_id, data.data.macro);
+    const isValid = await validateTagKeys(validatedExisting.organization_id, data.data.macro);
     if (!isValid) {
-        return existingMacro; // Return unchanged if validation fails
+        return validatedExisting; // Return unchanged if validation fails
     }
 
     try {
@@ -115,20 +155,32 @@ export async function updateMacro(data: z.infer<typeof SyncInputSchema>[number] 
             .returningAll()
             .executeTakeFirst();
 
-        if (updated) {
-            return updated;
-        }
+        return validateMacroRow(updated);
     } catch (error) {
         // Fall through to return unchanged value
     }
 
-    return existingMacro;
+    return validatedExisting;
 }
 
-export async function createMacro(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'create_macro' }, memberships: Record<string, string>): Promise<TableRow<'macros'> | null> {
+export async function createMacro(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'create_macro' }, memberships: Record<string, string>): Promise<MacroRow | null> {
     // Only create macro if user has access to the organization
     if (!memberships[data.data.organization_id]) {
         return null;
+    }
+
+    // Validate macro schema
+    const isValidMacro = await validateAndParseMacro(data.data.macro);
+    if (!isValidMacro) {
+        const now = new Date();
+        return {
+            id: data.data.id,
+            organization_id: data.data.organization_id,
+            macro: data.data.macro,
+            created_at: now,
+            updated_at: now,
+            deleted_at: now, // Mark as deleted if validation fails
+        };
     }
 
     // Validate tag keys before creating
@@ -146,16 +198,19 @@ export async function createMacro(data: z.infer<typeof SyncInputSchema>[number] 
     }
 
     try {
-        return await db.insertInto('macros')
+        const now = new Date();
+        const created = await db.insertInto('macros')
             .values({
                 id: data.data.id,
                 organization_id: data.data.organization_id,
                 macro: data.data.macro,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
+                created_at: now,
+                updated_at: now,
             })
             .returningAll()
             .executeTakeFirstOrThrow();
+
+        return validateMacroRow(created);
     } catch (error) {
         if (error instanceof Error && error.message.includes('duplicate key')) {
             const existing = await db.selectFrom('macros')
@@ -163,9 +218,7 @@ export async function createMacro(data: z.infer<typeof SyncInputSchema>[number] 
                 .where('id', '=', data.data.id)
                 .executeTakeFirst();
 
-            if (existing) {
-                return existing;
-            }
+            return validateMacroRow(existing);
         }
         const now = new Date();
         return {
@@ -179,23 +232,25 @@ export async function createMacro(data: z.infer<typeof SyncInputSchema>[number] 
     }
 }
 
-export async function deleteMacro(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_macro' }, memberships: Record<string, string>): Promise<TableRow<'macros'> | null> {
+export async function deleteMacro(data: z.infer<typeof SyncInputSchema>[number] & { operation: 'delete_macro' }, memberships: Record<string, string>): Promise<MacroRow | null> {
     const existingMacro = await db.selectFrom('macros')
         .selectAll()
         .where('id', '=', data.data.id)
         .executeTakeFirst();
 
-    if (!existingMacro) {
+    // Validate existing macro data
+    const validatedExisting = await validateMacroRow(existingMacro);
+    if (!validatedExisting) {
         return null;
     }
 
     // Check if user has access to the organization
-    if (!memberships[existingMacro.organization_id]) {
+    if (!memberships[validatedExisting.organization_id]) {
         return null;
     }
 
-    if (existingMacro.deleted_at) {
-        return existingMacro;
+    if (validatedExisting.deleted_at) {
+        return validatedExisting;
     }
 
     try {
@@ -208,12 +263,10 @@ export async function deleteMacro(data: z.infer<typeof SyncInputSchema>[number] 
             .returningAll()
             .executeTakeFirst();
 
-        if (updated) {
-            return updated;
-        }
+        return validateMacroRow(updated);
     } catch (error) {
         // Fall through to return unchanged value
     }
 
-    return existingMacro;
+    return validatedExisting;
 } 
