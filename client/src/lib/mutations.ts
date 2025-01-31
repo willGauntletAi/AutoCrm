@@ -456,73 +456,78 @@ export async function syncToServer(): Promise<void> {
             return;
         }
 
-        // We don't wait for this to finish. If it fails, it is fine because we store all mutations in the local db and can retry later.
-        client.sync.mutate(unsyncedMutations.map(m => m.operation)).then(async (result) => {
-            await db.transaction('rw', [
-                db.profiles,
-                db.organizations,
-                db.profileOrganizationMembers,
-                db.tickets,
-                db.ticketComments,
-                db.organizationInvitations,
-                db.ticketTagKeys,
-                db.ticketTagDateValues,
-                db.ticketTagNumberValues,
-                db.ticketTagTextValues,
-                db.ticketTagEnumOptions,
-                db.ticketTagEnumValues,
-                db.mutations
-            ], async () => {
-                if (result.profiles?.length) {
-                    await db.profiles.bulkPut(result.profiles);
-                }
-                if (result.organizations?.length) {
-                    await db.organizations.bulkPut(result.organizations);
-                }
-                if (result.profile_organization_members?.length) {
-                    await db.profileOrganizationMembers.bulkPut(result.profile_organization_members);
-                }
-                if (result.tickets?.length) {
-                    await db.tickets.bulkPut(result.tickets);
-                }
-                if (result.ticket_comments?.length) {
-                    await db.ticketComments.bulkPut(result.ticket_comments);
-                }
-                if (result.organization_invitations?.length) {
-                    await db.organizationInvitations.bulkPut(result.organization_invitations);
-                }
-                if (result.ticket_tag_keys?.length) {
-                    await db.ticketTagKeys.bulkPut(result.ticket_tag_keys.map(key => ({
-                        ...key,
-                        tag_type: key.tag_type as 'date' | 'number' | 'text'
-                    })));
-                }
-                if (result.ticket_tag_date_values?.length) {
-                    await db.ticketTagDateValues.bulkPut(result.ticket_tag_date_values.map(value => ({
-                        ...value,
-                        value: new Date(value.value)
-                    })));
-                }
-                if (result.ticket_tag_number_values?.length) {
-                    const vals = result.ticket_tag_number_values.map(v => ({ ...v, value: Number(v.value) }));
-                    await db.ticketTagNumberValues.bulkPut(vals);
-                }
-                if (result.ticket_tag_text_values?.length) {
-                    await db.ticketTagTextValues.bulkPut(result.ticket_tag_text_values);
-                }
-                if (result.ticket_tag_enum_options?.length) {
-                    await db.ticketTagEnumOptions.bulkPut(result.ticket_tag_enum_options);
-                }
-                if (result.ticket_tag_enum_values?.length) {
-                    await db.ticketTagEnumValues.bulkPut(result.ticket_tag_enum_values);
-                }
+        // Fire and forget - don't await the sync
+        void client.sync.mutate(unsyncedMutations.map((mutation) => mutation.operation))
+            .then(async (result) => {
+                await db.transaction('rw', [
+                    db.profiles,
+                    db.organizations,
+                    db.profileOrganizationMembers,
+                    db.tickets,
+                    db.ticketComments,
+                    db.organizationInvitations,
+                    db.ticketTagKeys,
+                    db.ticketTagDateValues,
+                    db.ticketTagNumberValues,
+                    db.ticketTagTextValues,
+                    db.ticketTagEnumOptions,
+                    db.ticketTagEnumValues,
+                    db.mutations
+                ], async () => {
+                    if (result.profiles?.length) {
+                        await db.profiles.bulkPut(result.profiles);
+                    }
+                    if (result.organizations?.length) {
+                        await db.organizations.bulkPut(result.organizations);
+                    }
+                    if (result.profile_organization_members?.length) {
+                        await db.profileOrganizationMembers.bulkPut(result.profile_organization_members);
+                    }
+                    if (result.tickets?.length) {
+                        await db.tickets.bulkPut(result.tickets);
+                    }
+                    if (result.ticket_comments?.length) {
+                        await db.ticketComments.bulkPut(result.ticket_comments);
+                    }
+                    if (result.organization_invitations?.length) {
+                        await db.organizationInvitations.bulkPut(result.organization_invitations);
+                    }
+                    if (result.ticket_tag_keys?.length) {
+                        await db.ticketTagKeys.bulkPut(result.ticket_tag_keys.map(key => ({
+                            ...key,
+                            tag_type: key.tag_type as 'date' | 'number' | 'text'
+                        })));
+                    }
+                    if (result.ticket_tag_date_values?.length) {
+                        await db.ticketTagDateValues.bulkPut(result.ticket_tag_date_values.map(value => ({
+                            ...value,
+                            value: new Date(value.value)
+                        })));
+                    }
+                    if (result.ticket_tag_number_values?.length) {
+                        const vals = result.ticket_tag_number_values.map(v => ({ ...v, value: Number(v.value) }));
+                        await db.ticketTagNumberValues.bulkPut(vals);
+                    }
+                    if (result.ticket_tag_text_values?.length) {
+                        await db.ticketTagTextValues.bulkPut(result.ticket_tag_text_values);
+                    }
+                    if (result.ticket_tag_enum_options?.length) {
+                        await db.ticketTagEnumOptions.bulkPut(result.ticket_tag_enum_options);
+                    }
+                    if (result.ticket_tag_enum_values?.length) {
+                        await db.ticketTagEnumValues.bulkPut(result.ticket_tag_enum_values);
+                    }
 
-                await markMutationsSynced(unsyncedMutations.map(m => m.id!));
+                    await markMutationsSynced(unsyncedMutations.map(mutation => mutation.id!));
+                });
+            })
+            .catch(error => {
+                console.error('Error syncing to server:', error);
+                // Don't throw the error since this is fire and forget
             });
-        });
     } catch (error) {
-        console.error('Error syncing to server:', error);
-        throw error;
+        console.error('Error preparing sync to server:', error);
+        // Don't throw the error since this is fire and forget
     }
 }
 

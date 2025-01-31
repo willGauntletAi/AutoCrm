@@ -20,7 +20,6 @@ interface TicketCardProps {
     status: string;
     created_at: string | null;
     updated_at?: string | null;
-    description?: string;
     organization_id: string;
     linkPath: string;
     tags?: {
@@ -114,7 +113,6 @@ export function TicketCard({
     status,
     created_at,
     updated_at,
-    description,
     linkPath,
     tags,
     onTagClick
@@ -300,7 +298,7 @@ export function TicketCard({
     return (
         <>
             <Link to={linkPath}>
-                <Card className="hover:shadow-md transition-shadow h-[180px] mb-4">
+                <Card className="hover:shadow-md transition-shadow h-[140px] mb-4">
                     <CardHeader>
                         <div className="flex justify-between items-start">
                             <CardTitle>{title}</CardTitle>
@@ -315,11 +313,6 @@ export function TicketCard({
                         </div>
                     </CardHeader>
                     <CardContent>
-                        {description && (
-                            <p className="text-gray-600 mb-4 line-clamp-2">
-                                {description}
-                            </p>
-                        )}
                         {tags && tags.values && (
                             <div className="mb-4">
                                 <div ref={tagsContainerRef} className="flex flex-wrap gap-2">

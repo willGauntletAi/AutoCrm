@@ -30,6 +30,10 @@ export default function Tickets() {
         tags: Array<{ key: TicketTagKey; value: string }>;
     } | null>(null)
 
+    if (!organization_id) {
+        return <div>No organization selected</div>;
+    }
+
     const tickets = useLiveQuery(
         async () => {
             // First get all tag keys for the organization
@@ -238,7 +242,6 @@ export default function Tickets() {
                 }
             })
 
-            // Return both tickets and tag keys
             return {
                 tickets: ticketsList.map(ticket => ({
                     ...ticket,
@@ -253,7 +256,7 @@ export default function Tickets() {
                     }
                 })),
                 tagKeys
-            }
+            };
         },
         [organization_id, tagFilters],
         { tickets: [], tagKeys: [] }
@@ -311,30 +314,44 @@ export default function Tickets() {
                 />
             </div>
 
-            <div ref={parentRef} className="flex flex-col gap-4">
-                {virtualizer.getVirtualItems().map((virtualItem) => {
-                    const ticket = tickets.tickets[virtualItem.index]
-                    if (!ticket) return null
+            <div ref={parentRef} className="flex flex-col gap-4 h-[calc(100vh-200px)] overflow-auto">
+                <div
+                    style={{
+                        height: `${virtualizer.getTotalSize()}px`,
+                        width: '100%',
+                        position: 'relative'
+                    }}
+                >
+                    {virtualizer.getVirtualItems().map((virtualItem) => {
+                        const ticket = tickets.tickets[virtualItem.index]
+                        if (!ticket) return null
 
-                    return (
-                        <div
-                            key={virtualItem.key}
-                            data-index={virtualItem.index}
-                            ref={virtualizer.measureElement}
-                        >
-                            <TicketCard
-                                {...ticket}
-                                linkPath={`/organizations/${organization_id}/tickets/${ticket.id}`}
-                                onTagClick={handleTagClick}
-                                description={ticket.description || undefined}
-                                tags={ticket.tags && tickets.tagKeys.length > 0 ? {
-                                    keys: tickets.tagKeys,
-                                    values: ticket.tags.values
-                                } : undefined}
-                            />
-                        </div>
-                    )
-                })}
+                        return (
+                            <div
+                                key={virtualItem.key}
+                                data-index={virtualItem.index}
+                                ref={virtualizer.measureElement}
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    transform: `translateY(${virtualItem.start}px)`
+                                }}
+                            >
+                                <TicketCard
+                                    {...ticket}
+                                    linkPath={`/organizations/${organization_id}/tickets/${ticket.id}`}
+                                    onTagClick={handleTagClick}
+                                    tags={ticket.tags && tickets.tagKeys.length > 0 ? {
+                                        keys: tickets.tagKeys,
+                                        values: ticket.tags.values
+                                    } : undefined}
+                                />
+                            </div>
+                        )
+                    })}
+                </div>
             </div>
 
             {isCreatingTicket && (
