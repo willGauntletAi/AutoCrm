@@ -420,6 +420,9 @@ async function applyAIActions(
                 ticket,
                 tagKeyIds: aiActions.tagActions,
                 existingTags: ticketTags
+            }).catch(error => {
+                console.error('[AI Actions] Failed to generate tag suggestions:', error);
+                return null;
             })
             : Promise.resolve(null),
 
@@ -444,53 +447,57 @@ async function applyAIActions(
     ]);
 
     // Apply tag suggestions
-    if (tagSuggestions) {
+    if (tagSuggestions?.length) {
         for (const suggestion of tagSuggestions) {
-            switch (suggestion.type) {
-                case 'date': {
-                    const dateInsert: InsertObject<'ticket_draft_tag_date_values'> = {
-                        ticket_draft_id: draft.id,
-                        tag_key_id: suggestion.tagKeyId,
-                        value: suggestion.value as Date
-                    };
-                    await db.insertInto('ticket_draft_tag_date_values')
-                        .values(dateInsert)
-                        .execute();
-                    break;
+            try {
+                switch (suggestion.type) {
+                    case 'date': {
+                        const dateInsert: InsertObject<'ticket_draft_tag_date_values'> = {
+                            ticket_draft_id: draft.id,
+                            tag_key_id: suggestion.tagKeyId,
+                            value: suggestion.value as Date
+                        };
+                        await db.insertInto('ticket_draft_tag_date_values')
+                            .values(dateInsert)
+                            .execute();
+                        break;
+                    }
+                    case 'number': {
+                        const numberInsert: InsertObject<'ticket_draft_tag_number_values'> = {
+                            ticket_draft_id: draft.id,
+                            tag_key_id: suggestion.tagKeyId,
+                            value: suggestion.value.toString()
+                        };
+                        await db.insertInto('ticket_draft_tag_number_values')
+                            .values(numberInsert)
+                            .execute();
+                        break;
+                    }
+                    case 'text': {
+                        const textInsert: InsertObject<'ticket_draft_tag_text_values'> = {
+                            ticket_draft_id: draft.id,
+                            tag_key_id: suggestion.tagKeyId,
+                            value: suggestion.value as string
+                        };
+                        await db.insertInto('ticket_draft_tag_text_values')
+                            .values(textInsert)
+                            .execute();
+                        break;
+                    }
+                    case 'enum': {
+                        const enumInsert: InsertObject<'ticket_draft_tag_enum_values'> = {
+                            ticket_draft_id: draft.id,
+                            tag_key_id: suggestion.tagKeyId,
+                            enum_option_id: suggestion.value as string
+                        };
+                        await db.insertInto('ticket_draft_tag_enum_values')
+                            .values(enumInsert)
+                            .execute();
+                        break;
+                    }
                 }
-                case 'number': {
-                    const numberInsert: InsertObject<'ticket_draft_tag_number_values'> = {
-                        ticket_draft_id: draft.id,
-                        tag_key_id: suggestion.tagKeyId,
-                        value: suggestion.value.toString()
-                    };
-                    await db.insertInto('ticket_draft_tag_number_values')
-                        .values(numberInsert)
-                        .execute();
-                    break;
-                }
-                case 'text': {
-                    const textInsert: InsertObject<'ticket_draft_tag_text_values'> = {
-                        ticket_draft_id: draft.id,
-                        tag_key_id: suggestion.tagKeyId,
-                        value: suggestion.value as string
-                    };
-                    await db.insertInto('ticket_draft_tag_text_values')
-                        .values(textInsert)
-                        .execute();
-                    break;
-                }
-                case 'enum': {
-                    const enumInsert: InsertObject<'ticket_draft_tag_enum_values'> = {
-                        ticket_draft_id: draft.id,
-                        tag_key_id: suggestion.tagKeyId,
-                        enum_option_id: suggestion.value as string
-                    };
-                    await db.insertInto('ticket_draft_tag_enum_values')
-                        .values(enumInsert)
-                        .execute();
-                    break;
-                }
+            } catch (error) {
+                console.error(`[AI Actions] Failed to apply ${suggestion.type} tag suggestion:`, error);
             }
         }
     }

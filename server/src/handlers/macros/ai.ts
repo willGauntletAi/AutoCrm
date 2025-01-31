@@ -144,12 +144,14 @@ export async function generateAITagSuggestions({ ticket, tagKeyIds, existingTags
                 },
                 { role: "user", content: prompt }
             ],
-            functions: [functionSchema],
-            function_call: { name: 'suggest_tag_value' },
+            tools: [{
+                type: 'function',
+                function: functionSchema
+            }],
+            tool_choice: { type: 'function', function: { name: 'suggest_tag_value' } },
             temperature: 0.7,
         });
 
-        //We only provide a single tool, so this should always give us what we expect if it calls any tools.
         const functionCall = completion?.choices[0]?.message?.tool_calls?.[0]?.function;
         if (functionCall?.arguments) {
             const args = JSON.parse(functionCall.arguments);
@@ -157,59 +159,65 @@ export async function generateAITagSuggestions({ ticket, tagKeyIds, existingTags
             // Type guard to check if args has the expected shape based on tag type
             function isValidResponse(args: unknown): args is { value: string | number } {
                 if (typeof args !== 'object' || args === null) {
+                    console.error(`[AI Tags] Invalid response for '${tagKey.name}': not an object`);
                     throw new Error('Function call response must be an object');
                 }
 
                 if (!('value' in args)) {
+                    console.error(`[AI Tags] Invalid response for '${tagKey.name}': missing value property`);
                     throw new Error('Response must include a value property');
                 }
 
-                switch (tagKey.tag_type) {
-                    case 'date':
-                        if (typeof args.value !== 'string') {
-                            throw new Error('Date value must be a string');
-                        }
-                        // Validate ISO date format
-                        const date = new Date(args.value);
-                        if (isNaN(date.getTime())) {
-                            throw new Error(`Invalid date format: ${args.value}`);
-                        }
-                        break;
+                try {
+                    switch (tagKey.tag_type) {
+                        case 'date':
+                            if (typeof args.value !== 'string') {
+                                throw new Error('Date value must be a string');
+                            }
+                            // Validate ISO date format
+                            const date = new Date(args.value);
+                            if (isNaN(date.getTime())) {
+                                throw new Error(`Invalid date format: ${args.value}`);
+                            }
+                            break;
 
-                    case 'number':
-                        if (typeof args.value !== 'number') {
-                            throw new Error('Number value must be a number');
-                        }
-                        break;
+                        case 'number':
+                            if (typeof args.value !== 'number') {
+                                throw new Error('Number value must be a number');
+                            }
+                            break;
 
-                    case 'enum':
-                        if (typeof args.value !== 'string') {
-                            throw new Error('Enum value must be a string');
-                        }
-                        if (!tagKey.enumOptions.some(opt => opt.value === args.value)) {
-                            throw new Error(`Invalid enum value: ${args.value}. Must be one of: ${tagKey.enumOptions.map(opt => opt.value).join(', ')}`);
-                        }
-                        break;
+                        case 'enum':
+                            if (typeof args.value !== 'string') {
+                                throw new Error('Enum value must be a string');
+                            }
+                            if (!tagKey.enumOptions.some(opt => opt.value === args.value)) {
+                                throw new Error(`Invalid enum value: ${args.value}. Must be one of: ${tagKey.enumOptions.map(opt => opt.value).join(', ')}`);
+                            }
+                            break;
 
-                    case 'text':
-                        if (typeof args.value !== 'string') {
-                            throw new Error('Text value must be a string');
-                        }
-                        break;
+                        case 'text':
+                            if (typeof args.value !== 'string') {
+                                throw new Error('Text value must be a string');
+                            }
+                            break;
 
-                    default:
-                        throw new Error(`Unsupported tag type: ${tagKey.tag_type}`);
+                        default:
+                            throw new Error(`Unsupported tag type: ${tagKey.tag_type}`);
+                    }
+                } catch (error) {
+                    console.error(`[AI Tags] Validation error for '${tagKey.name}':`, error);
+                    throw error;
                 }
 
                 return true;
             }
 
             if (!isValidResponse(args)) {
-                // TypeScript will never reach this due to type guard, but keeping for runtime safety
                 throw new Error('Invalid response format from function call');
             }
 
-            suggestions.push({
+            const suggestion = {
                 type: tagKey.tag_type as 'date' | 'number' | 'text' | 'enum',
                 tagKeyId,
                 value: tagKey.tag_type === 'date'
@@ -217,7 +225,15 @@ export async function generateAITagSuggestions({ ticket, tagKeyIds, existingTags
                     : tagKey.tag_type === 'enum'
                         ? getEnumOptionIdByName(tagKey.enumOptions, args.value as string) || args.value
                         : args.value
-            });
+            };
+            console.log(`[AI Tags] Suggested value for '${tagKey.name}':`,
+                tagKey.tag_type === 'enum'
+                    ? args.value
+                    : suggestion.value
+            );
+            suggestions.push(suggestion);
+        } else {
+            console.warn(`[AI Tags] No suggestion received for '${tagKey.name}'`);
         }
     }
 
@@ -295,12 +311,14 @@ export async function generateAIStatusAndPriority({ ticket, suggestStatus, sugge
             },
             { role: "user", content: prompt }
         ],
-        functions: [functionSchema],
-        function_call: { name: 'suggest_status_and_priority' },
+        tools: [{
+            type: 'function',
+            function: functionSchema
+        }],
+        tool_choice: { type: 'function', function: { name: 'suggest_status_and_priority' } },
         temperature: 0.7,
     });
 
-    // We only provide a single tool, so this should always give us what we expect if it calls any tools.
     const functionCall = completion?.choices[0]?.message?.tool_calls?.[0]?.function;
     if (!functionCall?.arguments) return null;
 
@@ -342,7 +360,6 @@ export async function generateAIStatusAndPriority({ ticket, suggestStatus, sugge
     }
 
     if (!isValidResponse(args)) {
-        // TypeScript will never reach this due to type guard, but keeping for runtime safety
         throw new Error('Invalid response format from function call');
     }
 
