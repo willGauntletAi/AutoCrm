@@ -156,7 +156,7 @@ export default function Draft() {
     // Local state for draft changes
     const [draftState, setDraftState] = useState<DraftState | null>(null)
     const [tagData, setTagData] = useState<TagData | null>(null)
-    const [_, setHasChanges] = useState(false)
+    const [, setHasChanges] = useState(false)
     const [ticketComments, setTicketComments] = useState<TicketComment[]>([])
     const [draftComments, setDraftComments] = useState<DraftComment[]>([])
 
@@ -333,10 +333,14 @@ export default function Draft() {
 
             // Update date tag values
             for (const [tagKeyId, value] of draftState.tags.date.entries()) {
-                const existingValue = tagData.values.date.get(tagKeyId)
+                // Look up existing ticket tag value instead of using the draft tag value
+                const existingTicketValue = await db.ticketTagDateValues
+                    .where({ ticket_id: draftState.original_ticket_id, tag_key_id: tagKeyId })
+                    .first()
+
                 const date = parseYMDDateString(value)
-                if (existingValue) {
-                    tagPromises.push(updateTicketTagDateValue(existingValue.id, {
+                if (existingTicketValue) {
+                    tagPromises.push(updateTicketTagDateValue(existingTicketValue.id, {
                         value: date,
                         ticket_id: draftState.original_ticket_id
                     }))
@@ -352,9 +356,13 @@ export default function Draft() {
 
             // Update number tag values
             for (const [tagKeyId, value] of draftState.tags.number.entries()) {
-                const existingValue = tagData.values.number.get(tagKeyId)
-                if (existingValue) {
-                    tagPromises.push(updateTicketTagNumberValue(existingValue.id, {
+                // Look up existing ticket tag value instead of using the draft tag value
+                const existingTicketValue = await db.ticketTagNumberValues
+                    .where({ ticket_id: draftState.original_ticket_id, tag_key_id: tagKeyId })
+                    .first()
+
+                if (existingTicketValue) {
+                    tagPromises.push(updateTicketTagNumberValue(existingTicketValue.id, {
                         value: value.toString(),
                         ticket_id: draftState.original_ticket_id
                     }))
@@ -370,9 +378,13 @@ export default function Draft() {
 
             // Update text tag values
             for (const [tagKeyId, value] of draftState.tags.text.entries()) {
-                const existingValue = tagData.values.text.get(tagKeyId)
-                if (existingValue) {
-                    tagPromises.push(updateTicketTagTextValue(existingValue.id, {
+                // Look up existing ticket tag value instead of using the draft tag value
+                const existingTicketValue = await db.ticketTagTextValues
+                    .where({ ticket_id: draftState.original_ticket_id, tag_key_id: tagKeyId })
+                    .first()
+
+                if (existingTicketValue) {
+                    tagPromises.push(updateTicketTagTextValue(existingTicketValue.id, {
                         value,
                         ticket_id: draftState.original_ticket_id
                     }))
@@ -388,6 +400,7 @@ export default function Draft() {
 
             // Update enum tag values
             for (const [tagKeyId, value] of draftState.tags.enum.entries()) {
+                // Look up existing ticket tag value instead of using the draft tag value
                 const existingTicketValue = await db.ticketTagEnumValues
                     .where({ ticket_id: draftState.original_ticket_id, tag_key_id: tagKeyId })
                     .first()
@@ -436,8 +449,8 @@ export default function Draft() {
             // Check if tag values match the original draft
             const dateValuesMatch = await Promise.all(
                 Array.from(draftState.tags.date.entries()).map(async ([tagKeyId, value]) => {
-                    const tagValue = await db.ticketDraftTagDateValues
-                        .where({ ticket_draft_id: draftState.id, tag_key_id: tagKeyId })
+                    const tagValue = await db.ticketTagDateValues
+                        .where({ ticket_id: draftState.original_ticket_id, tag_key_id: tagKeyId })
                         .first()
                     return tagValue && formatDateTagValue(tagValue.value) === value
                 })
@@ -445,8 +458,8 @@ export default function Draft() {
 
             const numberValuesMatch = await Promise.all(
                 Array.from(draftState.tags.number.entries()).map(async ([tagKeyId, value]) => {
-                    const tagValue = await db.ticketDraftTagNumberValues
-                        .where({ ticket_draft_id: draftState.id, tag_key_id: tagKeyId })
+                    const tagValue = await db.ticketTagNumberValues
+                        .where({ ticket_id: draftState.original_ticket_id, tag_key_id: tagKeyId })
                         .first()
                     return tagValue && tagValue.value.toString() === value
                 })
@@ -454,8 +467,8 @@ export default function Draft() {
 
             const textValuesMatch = await Promise.all(
                 Array.from(draftState.tags.text.entries()).map(async ([tagKeyId, value]) => {
-                    const tagValue = await db.ticketDraftTagTextValues
-                        .where({ ticket_draft_id: draftState.id, tag_key_id: tagKeyId })
+                    const tagValue = await db.ticketTagTextValues
+                        .where({ ticket_id: draftState.original_ticket_id, tag_key_id: tagKeyId })
                         .first()
                     return tagValue && tagValue.value === value
                 })
@@ -463,8 +476,8 @@ export default function Draft() {
 
             const enumValuesMatch = await Promise.all(
                 Array.from(draftState.tags.enum.entries()).map(async ([tagKeyId, value]) => {
-                    const tagValue = await db.ticketDraftTagEnumValues
-                        .where({ ticket_draft_id: draftState.id, tag_key_id: tagKeyId })
+                    const tagValue = await db.ticketTagEnumValues
+                        .where({ ticket_id: draftState.original_ticket_id, tag_key_id: tagKeyId })
                         .first()
                     return tagValue && tagValue.enum_option_id === value
                 })
@@ -906,6 +919,7 @@ export default function Draft() {
                                                     // If we have a value but no enum data, try to find the enum data by the value
                                                     let effectiveEnumData = enumData
                                                     if (value && !enumData) {
+                                                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
                                                         for (const [_, data] of tagData.values.enum) {
                                                             if (data.tag_key_id === tagKey.id) {
                                                                 effectiveEnumData = data
