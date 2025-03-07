@@ -12,10 +12,8 @@ applications:
             - mkdir -p ./.amplify-hosting/compute/default
             - cp -r ./client/dist/* ./.amplify-hosting/static
             - cp -r ./server/dist/* ./.amplify-hosting/compute/default
-            - cp -r ./server/node_modules ./.amplify-hosting/compute/default/
-            - rm -rf ./node_modules
-            - npm ci --install-strategy=nested --omit=dev --workspace=server
-            - cp -r ./node_modules/* ./.amplify-hosting/compute/default/node_modules/
+            - cp ./server/package.json ./.amplify-hosting/compute/default/
+            - cd ./.amplify-hosting/compute/default && npm install --omit=dev
             - |
               cat > ./.amplify-hosting/compute/default/.env << EOL
               DATABASE_URL=${DATABASE_URL}
